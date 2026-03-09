@@ -111,5 +111,5 @@ export default async (req: Request): Promise<Response> => {
 
 export const config: Config = {
   path: '/api/debate',
-  maxDuration: 60,
+
 };

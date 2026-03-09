@@ -1,4 +1,4 @@
-import { Agent, extractJSON } from './agent.js';
+import { Agent } from './agent.js';
 import type { AgentResponse, DebateConfig, Turn } from './types.js';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
