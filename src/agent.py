@@ -169,19 +169,13 @@ class Agent:
     def _call_api(self, retries: int = 4, base_delay: float = 4.0) -> str:
         messages = self._build_messages()
 
-        # Determine provider: Groq if model is in GROQ_MODELS values, else OpenRouter
-        groq_model_ids = set(config.GROQ_MODELS.values())
-        if self.model in groq_model_ids and config.GROQ_API_KEY:
-            providers = [
-                (config.GROQ_API_BASE, config.GROQ_API_KEY, {}),
-                (config.OPENROUTER_API_BASE, config.OPENROUTER_API_KEY,
-                 {"HTTP-Referer": "https://github.com/botroom", "X-Title": "botroom"}),
-            ]
-        else:
-            providers = [
-                (config.OPENROUTER_API_BASE, self.api_key,
-                 {"HTTP-Referer": "https://github.com/botroom", "X-Title": "botroom"}),
-            ]
+        # Groq is always primary. OpenRouter is fallback only if key is available.
+        providers = [(config.GROQ_API_BASE, config.GROQ_API_KEY, {})]
+        if config.OPENROUTER_API_KEY:
+            providers.append((
+                config.OPENROUTER_API_BASE, config.OPENROUTER_API_KEY,
+                {"HTTP-Referer": "https://github.com/botroom", "X-Title": "botroom"},
+            ))
 
         for api_base, api_key, extra_headers in providers:
             for attempt in range(retries):

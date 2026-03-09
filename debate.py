@@ -23,7 +23,7 @@ from src.orchestrator import Orchestrator
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="debate",
-        description="Run a two-agent AI deliberation via OpenRouter.",
+        description="Run a two-agent AI deliberation via Groq.",
     )
     p.add_argument("topic", nargs="?", help="The topic or question to debate.")
     p.add_argument(
@@ -46,16 +46,16 @@ def build_parser() -> argparse.ArgumentParser:
         help=f"Max debate turns before forced synthesis (default: {config.MAX_TURNS}).",
     )
     p.add_argument(
-        "--api-key",
-        default=None,
-        metavar="KEY",
-        help="OpenRouter API key (overrides OPENROUTER_API_KEY env var).",
-    )
-    p.add_argument(
         "--groq-key",
         default=None,
         metavar="KEY",
         help="Groq API key (overrides GROQ_API_KEY env var).",
+    )
+    p.add_argument(
+        "--api-key",
+        default=None,
+        metavar="KEY",
+        help="OpenRouter API key for fallback (overrides OPENROUTER_API_KEY env var).",
     )
     p.add_argument(
         "--verbose",
@@ -75,25 +75,44 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _probe_models(api_key: str) -> None:
+def _probe_models(groq_key: str, openrouter_key: str) -> None:
     import httpx as _httpx
-    print("\nProbing free models...\n")
-    for key, model_id in FREE_MODELS.items():
+    print("\nProbing Groq models (primary)...\n")
+    for key, model_id in config.GROQ_MODELS.items():
         try:
             resp = _httpx.post(
-                f"{config.OPENROUTER_API_BASE}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                f"{config.GROQ_API_BASE}/chat/completions",
+                headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
                 json={"model": model_id, "messages": [{"role": "user", "content": "OK"}], "max_tokens": 3},
                 timeout=15,
             )
             data = resp.json()
             if "choices" in data:
-                print(f"  [OK]  {key:<16} {model_id}")
+                print(f"  [OK]  {key:<20} {model_id}")
             else:
                 code = data.get("error", {}).get("code", "?")
-                print(f"  [{code}] {key:<16} {model_id}")
+                print(f"  [{code}] {key:<20} {model_id}")
         except Exception as e:
-            print(f"  [ERR] {key:<16} {e}")
+            print(f"  [ERR] {key:<20} {e}")
+
+    if openrouter_key:
+        print("\nProbing OpenRouter fallback models...\n")
+        for key, model_id in FREE_MODELS.items():
+            try:
+                resp = _httpx.post(
+                    f"{config.OPENROUTER_API_BASE}/chat/completions",
+                    headers={"Authorization": f"Bearer {openrouter_key}", "Content-Type": "application/json"},
+                    json={"model": model_id, "messages": [{"role": "user", "content": "OK"}], "max_tokens": 3},
+                    timeout=15,
+                )
+                data = resp.json()
+                if "choices" in data:
+                    print(f"  [OK]  {key:<20} {model_id}")
+                else:
+                    code = data.get("error", {}).get("code", "?")
+                    print(f"  [{code}] {key:<20} {model_id}")
+            except Exception as e:
+                print(f"  [ERR] {key:<20} {e}")
     print()
 
 
@@ -114,13 +133,15 @@ def main() -> None:
         print("\n* current defaults\n")
         sys.exit(0)
 
-    if args.probe_models:
-        _probe_models(args.api_key or config.OPENROUTER_API_KEY)
-        sys.exit(0)
-
-    # Apply Groq key override if provided
+    # Apply key overrides before probe/run
     if args.groq_key:
         config.GROQ_API_KEY = args.groq_key
+    if args.api_key:
+        config.OPENROUTER_API_KEY = args.api_key
+
+    if args.probe_models:
+        _probe_models(config.GROQ_API_KEY, config.OPENROUTER_API_KEY)
+        sys.exit(0)
 
     # Resolve topic
     topic = args.topic
@@ -133,15 +154,16 @@ def main() -> None:
     if not topic:
         parser.error("A topic is required.")
 
-    # Resolve API key
-    api_key = args.api_key or config.OPENROUTER_API_KEY
-    if not api_key:
+    # Require Groq API key (primary provider)
+    if not config.GROQ_API_KEY:
         print(
-            "\nNo OpenRouter API key found.\n"
-            "Set OPENROUTER_API_KEY in your environment or .env file,\n"
-            "or pass --api-key <key>.\n"
+            "\nNo Groq API key found.\n"
+            "Set GROQ_API_KEY in your environment or .env file,\n"
+            "or pass --groq-key <key>.\n"
         )
         sys.exit(1)
+
+    api_key = config.OPENROUTER_API_KEY  # passed to agents as fallback key
 
     maker_model   = ALL_MODELS[args.maker]
     checker_model = ALL_MODELS[args.checker]
