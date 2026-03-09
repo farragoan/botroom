@@ -38,7 +38,7 @@ DEFAULT_MAKER_MODEL   = GROQ_MODELS["llama-70b"]
 DEFAULT_CHECKER_MODEL = GROQ_MODELS["llama4-maverick"]
 SYNTHESIS_MODEL       = GROQ_MODELS["llama-70b"]
 
-MAX_TURNS         = 10
+MAX_TURNS         = 999
 MAX_TOKENS        = 1024
 REQUEST_TIMEOUT   = 60   # seconds per API call
 
