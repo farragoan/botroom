@@ -1,0 +1,31 @@
+[build]
+  base      = "web"
+  publish   = "dist"
+  command   = "npm ci && npm run build"
+
+[functions]
+  directory    = "netlify/functions"
+  node_bundler = "esbuild"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options   = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy   = "strict-origin-when-cross-origin"
+
+[[redirects]]
+  from   = "/api/*"
+  to     = "/.netlify/functions/:splat"
+  status = 200
+
+[[redirects]]
+  from   = "/botroom"
+  to     = "/botroom/"
+  status = 301
+  force  = true
+
+[[redirects]]
+  from   = "/botroom/*"
+  to     = "/index.html"
+  status = 200
