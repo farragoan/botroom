@@ -149,7 +149,7 @@ describe('Agent', () => {
     const mockFetch = vi.fn().mockResolvedValue(makeMockResponse(VALID_RESPONSE));
     vi.stubGlobal('fetch', mockFetch);
 
-    const agent = new Agent('MAKER', 'llama-3.3-70b-versatile', 'test-key', 'https://api.groq.com/openai/v1');
+    const agent = new Agent('MAKER', 'llama-3.3-70b-versatile', 'test-key', 'https://api.groq.com/openai/v1', 'test topic');
     await agent.respond('Hello');
 
     expect(mockFetch).toHaveBeenCalledOnce();
@@ -163,20 +163,20 @@ describe('Agent', () => {
     const mockFetch = vi.fn().mockResolvedValue(makeMockResponse(VALID_RESPONSE));
     vi.stubGlobal('fetch', mockFetch);
 
-    const agent = new Agent('MAKER', 'some-model', 'key', 'https://api.groq.com/openai/v1');
+    const agent = new Agent('MAKER', 'some-model', 'key', 'https://api.groq.com/openai/v1', 'test topic');
     await agent.respond('Argue this');
 
     const body = JSON.parse((mockFetch.mock.calls[0] as [string, RequestInit & { body: string }])[1].body);
     expect(body.messages[0].role).toBe('system');
-    expect(body.messages[0].content).toContain('MAKER');
-    expect(body.messages[0].content).not.toContain('CHECKER');
+    expect(body.messages[0].content).toContain('You are MAKER');
+    expect(body.messages[0].content).not.toContain('You are CHECKER');
   });
 
   it('sends the CHECKER system prompt for CHECKER role', async () => {
     const mockFetch = vi.fn().mockResolvedValue(makeMockResponse(VALID_RESPONSE));
     vi.stubGlobal('fetch', mockFetch);
 
-    const agent = new Agent('CHECKER', 'some-model', 'key', 'https://api.groq.com/openai/v1');
+    const agent = new Agent('CHECKER', 'some-model', 'key', 'https://api.groq.com/openai/v1', 'test topic');
     await agent.respond('Critique this');
 
     const body = JSON.parse((mockFetch.mock.calls[0] as [string, RequestInit & { body: string }])[1].body);
@@ -188,7 +188,7 @@ describe('Agent', () => {
   it('returns parsed AgentResponse', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeMockResponse(VALID_RESPONSE)));
 
-    const agent = new Agent('MAKER', 'model', 'key', 'https://api.groq.com/openai/v1');
+    const agent = new Agent('MAKER', 'model', 'key', 'https://api.groq.com/openai/v1', 'test topic');
     const result = await agent.respond('Start');
 
     expect(result.thinking).toBe(VALID_RESPONSE.thinking);
@@ -200,7 +200,7 @@ describe('Agent', () => {
     const mockFetch = vi.fn().mockResolvedValue(makeMockResponse(VALID_RESPONSE));
     vi.stubGlobal('fetch', mockFetch);
 
-    const agent = new Agent('MAKER', 'model', 'key', 'https://api.groq.com/openai/v1');
+    const agent = new Agent('MAKER', 'model', 'key', 'https://api.groq.com/openai/v1', 'test topic');
 
     await agent.respond('First message');
     await agent.respond('Second message');
@@ -228,7 +228,7 @@ describe('Agent', () => {
     const mockFetch = vi.fn().mockResolvedValue(makeMockResponse(VALID_RESPONSE));
     vi.stubGlobal('fetch', mockFetch);
 
-    const agent = new Agent('MAKER', 'model', 'key', 'https://api.groq.com/openai/v1');
+    const agent = new Agent('MAKER', 'model', 'key', 'https://api.groq.com/openai/v1', 'test topic');
     await agent.respond('First message');
 
     expect(agent.messages.length).toBeGreaterThan(0);
@@ -254,7 +254,7 @@ describe('Agent', () => {
     // Speed up retries in tests
     vi.useFakeTimers();
 
-    const agent = new Agent('MAKER', 'model', 'key', 'https://api.groq.com/openai/v1');
+    const agent = new Agent('MAKER', 'model', 'key', 'https://api.groq.com/openai/v1', 'test topic');
     const responsePromise = agent.respond('Hello');
 
     // Advance past the 2s retry delay
@@ -281,7 +281,7 @@ describe('Agent', () => {
 
     vi.useFakeTimers();
 
-    const agent = new Agent('MAKER', 'model', 'key', 'https://api.groq.com/openai/v1');
+    const agent = new Agent('MAKER', 'model', 'key', 'https://api.groq.com/openai/v1', 'test topic');
     // Attach rejection handler immediately to avoid unhandledRejection warning
     const assertion = expect(agent.respond('Hello')).rejects.toThrow();
 
@@ -303,7 +303,7 @@ describe('Agent', () => {
 
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(badResponse));
 
-    const agent = new Agent('CHECKER', 'model', 'key', 'https://api.groq.com/openai/v1');
+    const agent = new Agent('CHECKER', 'model', 'key', 'https://api.groq.com/openai/v1', 'test topic');
     const result = await agent.respond('What do you think?');
 
     expect(result.action).toBe('CONTINUE');

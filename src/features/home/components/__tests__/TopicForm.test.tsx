@@ -1,9 +1,20 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { TopicForm } from '@/features/home/components/TopicForm';
 import type { DebateConfig } from '@/types/debate';
-import { DEFAULT_MAKER_MODEL, DEFAULT_CHECKER_MODEL, DEFAULT_MAX_TURNS } from '@/lib/constants';
+import { DEFAULT_MAX_TURNS } from '@/lib/constants';
+
+vi.mock('@/lib/api', () => ({
+  fetchModels: vi.fn().mockResolvedValue({
+    groq: [
+      { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B', provider: 'groq' },
+      { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B', provider: 'groq' },
+    ],
+    openrouter: [],
+  }),
+  streamDebate: vi.fn(),
+}));
 
 describe('TopicForm', () => {
   const mockSubmit = vi.fn();
@@ -33,16 +44,14 @@ describe('TopicForm', () => {
     expect(screen.getByRole('button', { name: /Start Debate/i })).toBeInTheDocument();
   });
 
-  it('has default MAKER model selected', () => {
+  it('populates model selects after fetch', async () => {
     render(<TopicForm onSubmit={mockSubmit} />);
-    const makerSelect = screen.getByLabelText(/MAKER Model/i) as HTMLSelectElement;
-    expect(makerSelect.value).toBe(DEFAULT_MAKER_MODEL);
-  });
-
-  it('has default CHECKER model selected', () => {
-    render(<TopicForm onSubmit={mockSubmit} />);
+    await waitFor(() => {
+      const makerSelect = screen.getByLabelText(/MAKER Model/i) as HTMLSelectElement;
+      expect(makerSelect.value).toBe('llama-3.3-70b-versatile');
+    });
     const checkerSelect = screen.getByLabelText(/CHECKER Model/i) as HTMLSelectElement;
-    expect(checkerSelect.value).toBe(DEFAULT_CHECKER_MODEL);
+    expect(checkerSelect.value).toBe('llama-3.1-8b-instant');
   });
 
   it('has default max turns value', () => {
@@ -74,6 +83,12 @@ describe('TopicForm', () => {
 
   it('calls onSubmit with correct config when valid', async () => {
     render(<TopicForm onSubmit={mockSubmit} />);
+    // Wait for models to load
+    await waitFor(() => {
+      const makerSelect = screen.getByLabelText(/MAKER Model/i) as HTMLSelectElement;
+      expect(makerSelect.value).not.toBe('');
+    });
+
     const textarea = screen.getByPlaceholderText(/Should AI be regulated/i);
     await userEvent.type(textarea, 'Should artificial intelligence be regulated by governments?');
     fireEvent.click(screen.getByRole('button', { name: /Start Debate/i }));
@@ -83,8 +98,8 @@ describe('TopicForm', () => {
 
     const config: DebateConfig = mockSubmit.mock.calls[0][0];
     expect(config.topic).toBe('Should artificial intelligence be regulated by governments?');
-    expect(config.makerModel).toBe(DEFAULT_MAKER_MODEL);
-    expect(config.checkerModel).toBe(DEFAULT_CHECKER_MODEL);
+    expect(config.makerModel).toBe('llama-3.3-70b-versatile');
+    expect(config.checkerModel).toBe('llama-3.1-8b-instant');
     expect(config.maxTurns).toBe(DEFAULT_MAX_TURNS);
     expect(config.verbose).toBe(false);
   });
@@ -111,7 +126,6 @@ describe('TopicForm', () => {
     const textarea = screen.getByPlaceholderText(/Should AI be regulated/i);
     await userEvent.type(textarea, 'Should AI be regulated by international bodies worldwide?');
 
-    // Find and click the verbose checkbox
     const checkbox = screen.getByRole('checkbox');
     expect(checkbox).not.toBeChecked();
     await userEvent.click(checkbox);

@@ -2,6 +2,23 @@ import type { DebateConfig } from '@/types/debate';
 import { API_BASE } from '@/lib/constants';
 import { parseSSEBuffer } from '@/lib/utils';
 
+export interface ModelInfo {
+  id: string;
+  name: string;
+  provider: 'groq' | 'openrouter';
+}
+
+export interface ModelsResponse {
+  groq: ModelInfo[];
+  openrouter: ModelInfo[];
+}
+
+export async function fetchModels(): Promise<ModelsResponse> {
+  const res = await fetch(`${API_BASE}/models`);
+  if (!res.ok) throw new Error(`Failed to fetch models: ${res.status}`);
+  return res.json() as Promise<ModelsResponse>;
+}
+
 export async function* streamDebate(
   config: DebateConfig,
   signal?: AbortSignal

@@ -5,11 +5,6 @@ import { AgentPanel } from '@/features/debate/components/AgentPanel';
 import { SynthesisCard } from '@/features/debate/components/SynthesisCard';
 import { Spinner } from '@/components/ui/Spinner';
 import { Button } from '@/components/ui/Button';
-import { MODELS } from '@/lib/constants';
-
-function getModelName(modelId: string): string {
-  return MODELS.find((m) => m.id === modelId)?.name ?? modelId;
-}
 
 export function DebateArena() {
   const { turns, synthesis, status, error, config, concludedNaturally, cancelDebate } =
@@ -36,8 +31,8 @@ export function DebateArena() {
       : 'MAKER'
     : null;
 
-  const makerModel = config ? getModelName(config.makerModel) : '—';
-  const checkerModel = config ? getModelName(config.checkerModel) : '—';
+  const makerModel = config?.makerModel ?? '—';
+  const checkerModel = config?.checkerModel ?? '—';
   const verbose = config?.verbose ?? false;
 
   return (

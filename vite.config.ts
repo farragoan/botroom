@@ -5,6 +5,14 @@ import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
   base: '/botroom/',
+  server: {
+    proxy: {
+      '/api': {
+        target: 'http://localhost:8888',
+        changeOrigin: true,
+      },
+    },
+  },
   plugins: [
     react(),
     tsconfigPaths(),

@@ -4,16 +4,16 @@ import type { AgentResponse, DebateConfig, Turn } from './types.js';
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
 
-const GROQ_MODEL_IDS: Record<string, string> = {
-  'llama-70b': 'llama-3.3-70b-versatile',
-  'llama-8b': 'llama-3.1-8b-instant',
-  'llama4-maverick': 'meta-llama/llama-4-maverick-17b-128e-instruct',
-  'qwen3-32b': 'qwen-qwq-32b',
-  'kimi-k2': 'moonshotai/kimi-k2-instruct',
-};
-
-function resolveModelId(shortName: string): string {
-  return GROQ_MODEL_IDS[shortName] ?? shortName;
+function resolveAgentConfig(
+  modelId: string,
+  groqApiKey: string,
+  openRouterApiKey?: string,
+): { modelId: string; apiKey: string; baseUrl: string } {
+  // OpenRouter model IDs contain ':' (e.g. "meta-llama/llama-3.1-8b-instruct:free")
+  if (modelId.includes(':')) {
+    return { modelId, apiKey: openRouterApiKey ?? '', baseUrl: OPENROUTER_BASE_URL };
+  }
+  return { modelId, apiKey: groqApiKey, baseUrl: GROQ_BASE_URL };
 }
 
 export type DebateEvent =
@@ -94,11 +94,11 @@ export async function* runDebate(
   const turns: Turn[] = [];
 
   try {
-    const makerModelId = resolveModelId(config.makerModel);
-    const checkerModelId = resolveModelId(config.checkerModel);
+    const makerCfg = resolveAgentConfig(config.makerModel, groqApiKey, openRouterApiKey);
+    const checkerCfg = resolveAgentConfig(config.checkerModel, groqApiKey, openRouterApiKey);
 
-    const maker = new Agent('MAKER', makerModelId, groqApiKey, GROQ_BASE_URL);
-    const checker = new Agent('CHECKER', checkerModelId, groqApiKey, GROQ_BASE_URL);
+    const maker = new Agent('MAKER', makerCfg.modelId, makerCfg.apiKey, makerCfg.baseUrl, config.topic);
+    const checker = new Agent('CHECKER', checkerCfg.modelId, checkerCfg.apiKey, checkerCfg.baseUrl, config.topic);
 
     let turnNumber = 0;
     let lastMakerAction: AgentResponse['action'] = 'CONTINUE';

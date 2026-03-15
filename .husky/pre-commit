@@ -1,0 +1,18 @@
+#!/usr/bin/env sh
+set -e
+
+echo "⏳ pre-commit: typecheck…"
+npm run typecheck
+
+echo "⏳ pre-commit: tests…"
+npm test
+
+echo "⏳ pre-commit: secret scan (gitleaks)…"
+if command -v gitleaks >/dev/null 2>&1; then
+  gitleaks protect --staged --redact --no-git
+else
+  echo "⚠️  gitleaks not found — skipping local secret scan (CI will catch it)."
+  echo "   Install: brew install gitleaks  OR  https://github.com/gitleaks/gitleaks"
+fi
+
+echo "✅ pre-commit checks passed."

@@ -13,3 +13,7 @@ build/
 web/node_modules/
 web/dist/
 web/.vite/
+node_modules
+
+# Local Netlify folder
+.netlify

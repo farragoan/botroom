@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { cn } from '@/lib/utils';
-import { MODELS, DEFAULT_MAKER_MODEL, DEFAULT_CHECKER_MODEL, DEFAULT_MAX_TURNS } from '@/lib/constants';
+import { DEFAULT_MAX_TURNS } from '@/lib/constants';
+import { fetchModels } from '@/lib/api';
 import type { DebateConfig } from '@/types/debate';
 
 interface TopicFormProps {
@@ -10,15 +11,33 @@ interface TopicFormProps {
   isLoading?: boolean;
 }
 
-const modelOptions = MODELS.map((m) => ({ value: m.id, label: m.name }));
-
 export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
   const [topic, setTopic] = useState('');
-  const [makerModel, setMakerModel] = useState(DEFAULT_MAKER_MODEL);
-  const [checkerModel, setCheckerModel] = useState(DEFAULT_CHECKER_MODEL);
+  const [makerModel, setMakerModel] = useState('');
+  const [checkerModel, setCheckerModel] = useState('');
   const [maxTurns, setMaxTurns] = useState(DEFAULT_MAX_TURNS);
   const [verbose, setVerbose] = useState(false);
   const [topicError, setTopicError] = useState('');
+  const [modelOptions, setModelOptions] = useState<{ value: string; label: string }[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchModels()
+      .then((data) => {
+        const groq = data.groq.map((m) => ({ value: m.id, label: `${m.name} (Groq)` }));
+        const or = data.openrouter.map((m) => ({ value: m.id, label: `${m.name} (OpenRouter)` }));
+        const options = [...groq, ...or];
+        setModelOptions(options);
+        if (options.length > 0) {
+          setMakerModel(options[0].value);
+          setCheckerModel(options[Math.min(1, options.length - 1)].value);
+        }
+      })
+      .catch(() => {
+        // Leave empty — user will see empty selects
+      })
+      .finally(() => setModelsLoading(false));
+  }, []);
 
   function validate(): boolean {
     if (!topic.trim()) {
@@ -85,15 +104,17 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
           label="MAKER Model"
-          options={modelOptions}
+          options={modelsLoading ? [{ value: '', label: 'Loading models…' }] : modelOptions}
           value={makerModel}
           onChange={(e) => setMakerModel(e.target.value)}
+          disabled={modelsLoading}
         />
         <Select
           label="CHECKER Model"
-          options={modelOptions}
+          options={modelsLoading ? [{ value: '', label: 'Loading models…' }] : modelOptions}
           value={checkerModel}
           onChange={(e) => setCheckerModel(e.target.value)}
+          disabled={modelsLoading}
         />
       </div>
 
