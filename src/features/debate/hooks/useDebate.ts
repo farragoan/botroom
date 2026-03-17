@@ -1,4 +1,5 @@
 import { useRef } from 'react';
+import { useAuth } from '@clerk/react';
 import { useDebateStore } from '@/features/debate/store/debateStore';
 import { streamDebate } from '@/lib/api';
 import type { DebateConfig, Turn } from '@/types/debate';
@@ -39,13 +40,14 @@ function isErrorData(data: unknown): data is { message: string } {
 export function useDebate() {
   const store = useDebateStore();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const { getToken } = useAuth();
 
   async function startDebate(config: DebateConfig): Promise<void> {
     store.reset();
     store.setConfig(config);
     store.setStatus('running');
 
-    if (Notification.permission === 'default') {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission();
     }
 
@@ -53,7 +55,9 @@ export function useDebate() {
     abortControllerRef.current = controller;
 
     try {
-      const generator = streamDebate(config, controller.signal);
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      const generator = streamDebate(config, token, controller.signal);
 
       for await (const event of generator) {
         if (event.type === 'turn') {
@@ -78,7 +82,7 @@ export function useDebate() {
       }
 
       store.setStatus('complete');
-      if (Notification.permission === 'granted') {
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
         new Notification('Debate complete', {
           body: `The debate has concluded after ${store.turns.length} turns.`,
         });
