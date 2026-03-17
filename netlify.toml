@@ -19,37 +19,6 @@ publish   = "dist"
   status = 200
 
 [[redirects]]
-  from   = "/botroom"
-  to     = "/botroom/"
-  status = 301
-  force  = true
-
-[[redirects]]
-  from   = "/botroom/assets/*"
-  to     = "/assets/:splat"
-  status = 200
-
-[[redirects]]
-  from   = "/botroom/registerSW.js"
-  to     = "/registerSW.js"
-  status = 200
-
-[[redirects]]
-  from   = "/botroom/sw.js"
-  to     = "/sw.js"
-  status = 200
-
-[[redirects]]
-  from   = "/botroom/workbox-*"
-  to     = "/workbox-:splat"
-  status = 200
-
-[[redirects]]
-  from   = "/botroom/manifest.webmanifest"
-  to     = "/manifest.webmanifest"
-  status = 200
-
-[[redirects]]
-  from   = "/botroom/*"
+  from   = "/*"
   to     = "/index.html"
   status = 200

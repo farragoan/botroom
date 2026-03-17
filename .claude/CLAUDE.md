@@ -69,3 +69,58 @@ The SPA catch-all redirect (`/botroom/*` → `/index.html`) would intercept asse
 ```
 
 If new static file types appear at the `/botroom/` path and break with MIME errors, add a similar pass-through redirect before the catch-all.
+
+## Terminal Mode — Agent Harness
+
+The debate engine can be run directly from the command line without a browser or Netlify dev server. The CLI script imports the orchestrator and agent logic directly from `netlify/functions/lib/` — no HTTP layer.
+
+### Running a debate
+
+```bash
+GROQ_API_KEY=gsk_... npx tsx scripts/debate.ts "<topic>" [options]
+```
+
+**Options:**
+- `--json` — emit JSON lines to stdout (one object per event); use this when parsing output programmatically
+- `--maker-model <id>` — model ID for MAKER agent (default: `llama-3.3-70b-versatile`)
+- `--checker-model <id>` — model ID for CHECKER agent (default: `llama-3.3-70b-versatile`)
+- `--max-turns <n>` — maximum debate turns (default: 8)
+- `--verbose` — include each agent's internal `thinking` field in output
+
+**Standard test prompt** (use this as your baseline for prompt quality evaluation):
+```bash
+GROQ_API_KEY=gsk_... npx tsx scripts/debate.ts "Thanos was right to kill half of all life in the universe"
+```
+
+### Output formats
+
+**Human-readable (default):** Coloured turn-by-turn transcript with agent labels, actions, conceded points, and a synthesis at the end.
+
+**JSON lines (`--json`):** One JSON object per line. Each object is either:
+- `{"type":"turn","data":{"turnNumber":N,"agent":"MAKER"|"CHECKER","response":{...}}}` — a completed turn
+- `{"type":"synthesis","data":{"synthesis":"...","concludedNaturally":bool,"totalTurns":N}}` — final synthesis
+- `{"type":"error","data":{"message":"..."}}` — error; process exits with code 1
+
+### Agent iteration loop
+
+Use this loop to evaluate and improve debate quality:
+
+1. **Run** the debate with the standard test prompt
+2. **Read** the output — assess:
+   - Are agents restating the same points or genuinely escalating?
+   - Is CHECKER finding real logical flaws or just objecting generically?
+   - Are concessions strategic or reflexive?
+   - Does the debate converge toward a shared position, or does it stalemate?
+   - Is context growing faster than argument quality improves? (sign of prompt bloat)
+3. **Edit** `netlify/functions/lib/agent.ts` — the system prompts are `MAKER_SYSTEM` and `CHECKER_SYSTEM` (lines 3–51). These are the primary levers:
+   - How agents are instructed to handle prior context as turns accumulate
+   - Whether agents are guided toward genuine position updates vs. fixed adversarial stances
+   - The conditions under which CONCLUDE is appropriate
+4. **Re-run** with the same topic and compare
+5. Repeat until debate quality improves (natural convergence without forced concede, context managed tightly)
+
+### What NOT to change in the iteration loop
+
+- Do not modify `orchestrator.ts` turn logic unless changing the debate topology itself
+- Do not modify `types.ts` unless adding new agent capabilities
+- The `CONCEDE` action node exists but should become less relied upon as prompts improve — the goal is position updates through argument quality, not structured exit ramps

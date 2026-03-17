@@ -157,7 +157,6 @@ export class Agent {
             temperature: 0.7,
           }),
         });
-        console.log(response);
         if (response.status === 429) {
           if (attempt < MAX_RETRIES - 1) {
             // Prefer token-reset time; fall back to request-reset; then exponential backoff
