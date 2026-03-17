@@ -15,5 +15,5 @@ export const router = createBrowserRouter(
       ],
     },
   ],
-  { basename: '/botroom' }
+  { basename: '/' }
 );
