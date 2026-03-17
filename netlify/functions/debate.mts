@@ -145,6 +145,14 @@ export default async (req: Request): Promise<Response> => {
             totalTokens += usage.promptTokens + usage.completionTokens;
             totalCostPaise += costPaise;
 
+            // Stop the stream if overdraft limit exceeded
+            if (balanceAfter <= OVERDRAFT_LIMIT_PAISE) {
+              enqueue(sseMessage('error', { message: 'Wallet balance exhausted. Please top up to continue.' }));
+              enqueue(sseMessage('done', { debateId }));
+              await db.execute({ sql: `UPDATE debates SET status='failed' WHERE id=?`, args: [debateId] });
+              return; // exits the ReadableStream start() function, closing the stream
+            }
+
           } else if (event.type === 'synthesis') {
             enqueue(sseMessage('synthesis', event.data));
 

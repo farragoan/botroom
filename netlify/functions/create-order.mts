@@ -27,9 +27,18 @@ export default async (req: Request): Promise<Response> => {
 
     const packDef = getPackOrThrow(body.pack);
 
+    const razorpayKeyId = process.env.RAZORPAY_KEY_ID;
+    const razorpayKeySecret = process.env.RAZORPAY_KEY_SECRET;
+    if (!razorpayKeyId || !razorpayKeySecret) {
+      console.error('RAZORPAY_KEY_ID or RAZORPAY_KEY_SECRET is not set');
+      return new Response(JSON.stringify({ error: 'Payment service not configured' }), {
+        status: 500, headers: { ...CORS, 'Content-Type': 'application/json' },
+      });
+    }
+
     const razorpay = new Razorpay({
-      key_id: process.env.RAZORPAY_KEY_ID!,
-      key_secret: process.env.RAZORPAY_KEY_SECRET!,
+      key_id: razorpayKeyId,
+      key_secret: razorpayKeySecret,
     });
 
     const order = await razorpay.orders.create({
