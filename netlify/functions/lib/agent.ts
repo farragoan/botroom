@@ -96,10 +96,24 @@ export function extractJSON(text: string): AgentResponse {
 type ChatMessage = { role: string; content: string };
 
 const MAX_RETRIES = 3;
-const RETRY_DELAY_MS = 2000;
+const BASE_RETRY_DELAY_MS = 5000;
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Parse Groq's rate limit reset header (e.g. "3.754s", "1m30s", "28m48s") into milliseconds.
+ * Falls back to undefined if the header is absent or unparseable.
+ */
+function parseResetHeader(value: string | null): number | undefined {
+  if (!value) return undefined;
+  let ms = 0;
+  const minutes = value.match(/(\d+(?:\.\d+)?)m/);
+  const seconds = value.match(/(\d+(?:\.\d+)?)s/);
+  if (minutes) ms += parseFloat(minutes[1]) * 60_000;
+  if (seconds) ms += parseFloat(seconds[1]) * 1_000;
+  return ms > 0 ? ms : undefined;
 }
 
 export class Agent {
@@ -146,7 +160,14 @@ export class Agent {
         console.log(response);
         if (response.status === 429) {
           if (attempt < MAX_RETRIES - 1) {
-            await sleep(RETRY_DELAY_MS);
+            // Prefer token-reset time; fall back to request-reset; then exponential backoff
+            const resetMs =
+              parseResetHeader(response.headers.get('x-ratelimit-reset-tokens')) ??
+              parseResetHeader(response.headers.get('x-ratelimit-reset-requests')) ??
+              BASE_RETRY_DELAY_MS * 2 ** attempt;
+            const waitMs = Math.min(resetMs + 500, 120_000); // +500ms buffer, cap at 2min
+            console.warn(`[agent] 429 rate limited. Waiting ${waitMs}ms before retry ${attempt + 1}/${MAX_RETRIES - 1}`);
+            await sleep(waitMs);
             continue;
           }
           throw new Error(`Rate limited after ${MAX_RETRIES} attempts`);
@@ -169,7 +190,7 @@ export class Agent {
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         if (attempt < MAX_RETRIES - 1) {
-          await sleep(RETRY_DELAY_MS);
+          await sleep(BASE_RETRY_DELAY_MS * 2 ** attempt);
         }
       }
     }

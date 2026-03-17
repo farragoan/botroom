@@ -16,8 +16,13 @@ async function fetchGroqModels(apiKey: string): Promise<ModelInfo[]> {
   const res = await fetch('https://api.groq.com/openai/v1/models', {
     headers: { Authorization: `Bearer ${apiKey}` },
   });
-  if (!res.ok) return [];
+  if (!res.ok) {
+    const errorBody = await res.text();
+    console.error(`[models] Groq error ${res.status}:`, errorBody);
+    return [];
+  }
   const data = (await res.json()) as { data?: Array<{ id: string }> };
+  console.log('[models] Groq response:', JSON.stringify(data));
   return (data.data ?? []).map((m) => ({
     id: m.id,
     name: m.id,
@@ -53,8 +58,11 @@ export default async (req: Request): Promise<Response> => {
   }
 
   const groqApiKey = process.env.GROQ_API_KEY ?? '';
-  const enableGroq = process.env.ENABLE_GROQ !== 'false';
   const enableOpenRouter = process.env.ENABLE_OPENROUTER === 'true';
+  const enableGroq = process.env.ENABLE_GROQ !== 'false';
+  console.log("enable groq:", enableGroq);
+  console.log("enable openrouter:", enableOpenRouter)
+
 
   const [groqModels, openRouterModels] = await Promise.allSettled([
     enableGroq ? fetchGroqModels(groqApiKey) : Promise.resolve([] as ModelInfo[]),
