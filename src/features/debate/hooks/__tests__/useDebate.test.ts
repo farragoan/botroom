@@ -128,7 +128,7 @@ describe('useDebate()', () => {
           { type: 'turn', data: mockTurn },
           {
             type: 'synthesis',
-            data: { synthesis: 'Final summary', concluded_naturally: true },
+            data: { synthesis: 'Final summary', concludedNaturally: true },
           },
         ])
       );
@@ -148,7 +148,7 @@ describe('useDebate()', () => {
         makeAsyncGenerator([
           {
             type: 'synthesis',
-            data: { synthesis: 'Summary', concluded_naturally: false },
+            data: { synthesis: 'Summary', concludedNaturally: false },
           },
         ])
       );
@@ -167,7 +167,7 @@ describe('useDebate()', () => {
         makeAsyncGenerator([
           {
             type: 'synthesis',
-            data: { synthesis: 'Done', concluded_naturally: true },
+            data: { synthesis: 'Done', concludedNaturally: true },
           },
         ])
       );

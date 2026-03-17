@@ -6,7 +6,7 @@ import type { DebateConfig, Turn } from '@/types/debate';
 
 interface SynthesisEventData {
   synthesis: string;
-  concluded_naturally: boolean;
+  concludedNaturally: boolean;
 }
 
 function isSynthesisData(data: unknown): data is SynthesisEventData {
@@ -68,7 +68,7 @@ export function useDebate() {
           if (isSynthesisData(event.data)) {
             store.setSynthesis(event.data.synthesis);
             store.setConcludedNaturally(
-              Boolean(event.data.concluded_naturally)
+              Boolean(event.data.concludedNaturally)
             );
           }
         } else if (event.type === 'error') {
