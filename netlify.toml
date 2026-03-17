@@ -40,6 +40,16 @@ publish   = "dist"
   status = 200
 
 [[redirects]]
+  from   = "/botroom/workbox-*"
+  to     = "/workbox-:splat"
+  status = 200
+
+[[redirects]]
+  from   = "/botroom/manifest.webmanifest"
+  to     = "/manifest.webmanifest"
+  status = 200
+
+[[redirects]]
   from   = "/botroom/*"
   to     = "/index.html"
   status = 200
