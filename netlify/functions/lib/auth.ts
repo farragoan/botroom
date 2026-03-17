@@ -1,6 +1,17 @@
 // netlify/functions/lib/auth.ts
 import { verifyToken } from '@clerk/backend';
 
+let _secretKey: string | null = null;
+
+function getSecretKey(): string {
+  if (!_secretKey) {
+    const key = process.env.CLERK_SECRET_KEY;
+    if (!key) throw new Error('CLERK_SECRET_KEY is not set');
+    _secretKey = key;
+  }
+  return _secretKey;
+}
+
 /** Extract and verify Clerk JWT from Authorization header. Returns userId. */
 export async function requireAuth(req: Request): Promise<string> {
   const header = req.headers.get('Authorization');
@@ -8,12 +19,11 @@ export async function requireAuth(req: Request): Promise<string> {
     throw new AuthError('Missing Authorization header');
   }
   const token = header.slice(7);
-  const secretKey = process.env.CLERK_SECRET_KEY;
-  if (!secretKey) throw new Error('CLERK_SECRET_KEY is not set');
   try {
-    const payload = await verifyToken(token, { secretKey });
+    const payload = await verifyToken(token, { secretKey: getSecretKey() });
     return payload.sub;
-  } catch {
+  } catch (err) {
+    if (err instanceof AuthError) throw err;
     throw new AuthError('Invalid or expired token');
   }
 }

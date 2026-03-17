@@ -9,10 +9,16 @@ export interface AgentResponse {
   conclusion_summary: string | null;
 }
 
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+}
+
 export interface Turn {
   turnNumber: number;
   agent: AgentRole;
   response: AgentResponse;
+  tokenUsage?: TokenUsage; // populated when metering is active
 }
 
 export interface DebateConfig {

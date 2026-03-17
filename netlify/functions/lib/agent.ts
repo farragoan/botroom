@@ -1,4 +1,4 @@
-import type { AgentRole, AgentResponse } from './types.js';
+import type { AgentRole, AgentResponse, TokenUsage } from './types.js';
 
 const MAKER_SYSTEM = (topic: string) => `You are MAKER, an AI agent in a two-agent adversarial deliberation system. Your opponent is CHECKER.
 Your role: PROPOSE and AGGRESSIVELY DEFEND. Stake a clear position, build the strongest possible case, and don't yield ground without being forced to.
@@ -133,7 +133,7 @@ export class Agent {
     this.messages = [];
   }
 
-  async respond(incomingMessage: string): Promise<AgentResponse> {
+  async respond(incomingMessage: string): Promise<{ response: AgentResponse; usage: TokenUsage }> {
     this.messages.push({ role: 'user', content: incomingMessage });
 
     const systemPrompt = this.role === 'MAKER' ? MAKER_SYSTEM(this.topic) : CHECKER_SYSTEM(this.topic);
@@ -178,6 +178,7 @@ export class Agent {
 
         const data = (await response.json()) as {
           choices?: Array<{ message?: { content?: string } }>;
+          usage?: { prompt_tokens?: number; completion_tokens?: number };
         };
 
         const content = data?.choices?.[0]?.message?.content ?? '';
@@ -185,7 +186,9 @@ export class Agent {
 
         this.messages.push({ role: 'assistant', content });
 
-        return agentResponse;
+        const promptTokens = data?.usage?.prompt_tokens ?? 0;
+        const completionTokens = data?.usage?.completion_tokens ?? 0;
+        return { response: agentResponse, usage: { promptTokens, completionTokens } };
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         if (attempt < MAX_RETRIES - 1) {
