@@ -6,6 +6,8 @@ type: project
 
 # Claude Agent Instructions — botroom
 
+> **Scope:** These instructions apply to **background/autonomous agents** only (e.g. agents invoked via the Claude Agent SDK or CI pipelines). When working interactively with a human in the loop, the human's direct instructions take precedence.
+
 ## Pull Request & Merge Protocol
 
 **Always follow this two-step process for code changes:**
