@@ -66,7 +66,8 @@ export default async (req: Request): Promise<Response> => {
     });
   }
 
-  const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+  const enableOpenRouter = process.env.ENABLE_OPENROUTER === 'true';
+  const openRouterApiKey = enableOpenRouter ? process.env.OPENROUTER_API_KEY : undefined;
 
   const config: DebateConfig = {
     topic: topic.trim(),

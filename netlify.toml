@@ -25,6 +25,21 @@ publish   = "dist"
   force  = true
 
 [[redirects]]
+  from   = "/botroom/assets/*"
+  to     = "/assets/:splat"
+  status = 200
+
+[[redirects]]
+  from   = "/botroom/registerSW.js"
+  to     = "/registerSW.js"
+  status = 200
+
+[[redirects]]
+  from   = "/botroom/sw.js"
+  to     = "/sw.js"
+  status = 200
+
+[[redirects]]
   from   = "/botroom/*"
   to     = "/index.html"
   status = 200

@@ -39,3 +39,33 @@ The repo uses `pre-commit` hooks (see `.husky/` or `scripts/hooks/`) that run:
 - Gitleaks secret scan
 
 Do not bypass hooks with `--no-verify`.
+
+## Netlify Deployment — Base Path Routing
+
+Vite is configured with `base: '/botroom/'`, so all asset URLs are prefixed with `/botroom/` at runtime. However, Netlify serves from `dist/` where files live without that prefix (e.g. `/assets/...`, `/registerSW.js`).
+
+The SPA catch-all redirect (`/botroom/*` → `/index.html`) would intercept asset requests and return HTML, causing MIME type errors. To fix this, explicit pass-through redirects must appear **before** the catch-all in `netlify.toml`:
+
+```toml
+[[redirects]]
+  from   = "/botroom/assets/*"
+  to     = "/assets/:splat"
+  status = 200
+
+[[redirects]]
+  from   = "/botroom/registerSW.js"
+  to     = "/registerSW.js"
+  status = 200
+
+[[redirects]]
+  from   = "/botroom/sw.js"
+  to     = "/sw.js"
+  status = 200
+
+[[redirects]]
+  from   = "/botroom/*"
+  to     = "/index.html"
+  status = 200
+```
+
+If new static file types appear at the `/botroom/` path and break with MIME errors, add a similar pass-through redirect before the catch-all.

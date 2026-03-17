@@ -53,10 +53,12 @@ export default async (req: Request): Promise<Response> => {
   }
 
   const groqApiKey = process.env.GROQ_API_KEY ?? '';
+  const enableGroq = process.env.ENABLE_GROQ !== 'false';
+  const enableOpenRouter = process.env.ENABLE_OPENROUTER === 'true';
 
   const [groqModels, openRouterModels] = await Promise.allSettled([
-    fetchGroqModels(groqApiKey),
-    fetchOpenRouterFreeModels(),
+    enableGroq ? fetchGroqModels(groqApiKey) : Promise.resolve([] as ModelInfo[]),
+    enableOpenRouter ? fetchOpenRouterFreeModels() : Promise.resolve([] as ModelInfo[]),
   ]);
 
   const models = {
