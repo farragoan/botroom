@@ -12,7 +12,8 @@
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "typecheck": "tsc --noEmit",
-    "prepare": "husky"
+    "prepare": "husky",
+    "migrate": "npx tsx scripts/migrate.ts"
   },
   "dependencies": {
     "@clerk/backend": "^3.2.1",
