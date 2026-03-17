@@ -16,6 +16,7 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
   const [makerModel, setMakerModel] = useState('');
   const [checkerModel, setCheckerModel] = useState('');
   const [maxTurns, setMaxTurns] = useState(DEFAULT_MAX_TURNS);
+  const [unlimitedTurns, setUnlimitedTurns] = useState(false);
   const [verbose, setVerbose] = useState(false);
   const [topicError, setTopicError] = useState('');
   const [modelOptions, setModelOptions] = useState<{ value: string; label: string }[]>([]);
@@ -59,7 +60,7 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
       topic: topic.trim(),
       makerModel,
       checkerModel,
-      maxTurns,
+      maxTurns: unlimitedTurns ? 9999 : maxTurns,
       verbose,
     });
   }
@@ -131,12 +132,38 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
             min={2}
             max={20}
             value={maxTurns}
+            disabled={unlimitedTurns}
             onChange={(e) =>
               setMaxTurns(Math.min(20, Math.max(2, parseInt(e.target.value, 10) || 2)))
             }
-            className="w-full bg-surface-raised border border-slate-700 rounded-lg px-3 py-2 text-slate-50 focus:outline-none focus:ring-2 focus:border-maker focus:ring-maker/30 transition-colors duration-150"
+            className="w-full bg-surface-raised border border-slate-700 rounded-lg px-3 py-2 text-slate-50 focus:outline-none focus:ring-2 focus:border-maker focus:ring-maker/30 transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
           />
         </div>
+
+        {/* Unlimited turns toggle */}
+        <label className="flex items-center gap-3 cursor-pointer select-none pb-0.5 sm:pb-2">
+          <div className="relative">
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={unlimitedTurns}
+              onChange={(e) => setUnlimitedTurns(e.target.checked)}
+            />
+            <div
+              className={cn(
+                'w-10 h-6 rounded-full transition-colors duration-200',
+                unlimitedTurns ? 'bg-maker' : 'bg-slate-700'
+              )}
+            />
+            <div
+              className={cn(
+                'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200',
+                unlimitedTurns ? 'translate-x-4' : 'translate-x-0'
+              )}
+            />
+          </div>
+          <span className="text-sm text-slate-300">Unlimited turns</span>
+        </label>
 
         {/* Verbose toggle */}
         <label className="flex items-center gap-3 cursor-pointer select-none pb-0.5 sm:pb-2">

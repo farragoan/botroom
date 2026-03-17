@@ -126,10 +126,13 @@ describe('TopicForm', () => {
     const textarea = screen.getByPlaceholderText(/Should AI be regulated/i);
     await userEvent.type(textarea, 'Should AI be regulated by international bodies worldwide?');
 
-    const checkbox = screen.getByRole('checkbox');
-    expect(checkbox).not.toBeChecked();
-    await userEvent.click(checkbox);
-    expect(checkbox).toBeChecked();
+    const checkboxes = screen.getAllByRole('checkbox');
+    const verboseCheckbox = checkboxes.find((cb) =>
+      cb.closest('label')?.textContent?.includes('verbose')
+    )!;
+    expect(verboseCheckbox).not.toBeChecked();
+    await userEvent.click(verboseCheckbox);
+    expect(verboseCheckbox).toBeChecked();
 
     fireEvent.click(screen.getByRole('button', { name: /Start Debate/i }));
     await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));

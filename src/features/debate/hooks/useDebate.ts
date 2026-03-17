@@ -45,6 +45,10 @@ export function useDebate() {
     store.setConfig(config);
     store.setStatus('running');
 
+    if (Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
     const controller = new AbortController();
     abortControllerRef.current = controller;
 
@@ -74,6 +78,11 @@ export function useDebate() {
       }
 
       store.setStatus('complete');
+      if (Notification.permission === 'granted') {
+        new Notification('Debate complete', {
+          body: `The debate has concluded after ${store.turns.length} turns.`,
+        });
+      }
     } catch (err: unknown) {
       // Ignore AbortError — user-initiated cancel
       if (err instanceof Error && err.name === 'AbortError') {
