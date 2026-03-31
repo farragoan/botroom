@@ -79,9 +79,19 @@ export function useDebate() {
 
       store.setStatus('complete');
       if (Notification.permission === 'granted') {
-        new Notification('Debate complete', {
-          body: `The debate has concluded after ${store.turns.length} turns.`,
-        });
+        const body = `The debate has concluded after ${store.turns.length} turns.`;
+        try {
+          // In a PWA/SW context new Notification() is illegal — use SW registration instead
+          if (navigator.serviceWorker?.controller) {
+            navigator.serviceWorker.ready.then((reg) =>
+              reg.showNotification('Debate complete', { body }),
+            );
+          } else {
+            new Notification('Debate complete', { body });
+          }
+        } catch {
+          // Notifications not supported in this context — not critical
+        }
       }
     } catch (err: unknown) {
       // Ignore AbortError — user-initiated cancel

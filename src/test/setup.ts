@@ -7,6 +7,15 @@ afterEach(() => cleanup());
 // Mock scrollIntoView (not implemented in jsdom)
 window.HTMLElement.prototype.scrollIntoView = vi.fn();
 
+// Mock navigator.serviceWorker (not available in jsdom)
+Object.defineProperty(navigator, 'serviceWorker', {
+  writable: true,
+  value: {
+    controller: null,
+    ready: Promise.resolve({ showNotification: vi.fn() }),
+  },
+});
+
 // Mock Notification API (not available in jsdom)
 Object.defineProperty(globalThis, 'Notification', {
   writable: true,
