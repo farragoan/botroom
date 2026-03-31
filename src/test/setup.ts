@@ -4,6 +4,9 @@ import { afterEach, vi } from 'vitest';
 
 afterEach(() => cleanup());
 
+// Mock scrollIntoView (not implemented in jsdom)
+window.HTMLElement.prototype.scrollIntoView = vi.fn();
+
 // Mock Notification API (not available in jsdom)
 Object.defineProperty(globalThis, 'Notification', {
   writable: true,

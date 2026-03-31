@@ -11,6 +11,10 @@ interface TopicFormProps {
   isLoading?: boolean;
 }
 
+/** Preferred default model IDs — matched against the sorted model list from the API. */
+export const DEFAULT_MAKER_MODEL = 'compound-beta-mini';
+export const DEFAULT_CHECKER_MODEL = 'llama-4-maverick-17b-128e-instruct';
+
 export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
   const [topic, setTopic] = useState('');
   const [makerModel, setMakerModel] = useState('');
@@ -29,9 +33,17 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
         const or = data.openrouter.map((m) => ({ value: m.id, label: `${m.name} (OpenRouter)` }));
         const options = [...groq, ...or];
         setModelOptions(options);
+
         if (options.length > 0) {
-          setMakerModel(options[0].value);
-          setCheckerModel(options[Math.min(1, options.length - 1)].value);
+          // Prefer curated defaults; fall back to first/second in the sorted list
+          const makerIdx = options.findIndex((o) => o.value === DEFAULT_MAKER_MODEL);
+          const checkerIdx = options.findIndex((o) => o.value === DEFAULT_CHECKER_MODEL);
+          setMakerModel(makerIdx !== -1 ? options[makerIdx].value : options[0].value);
+          setCheckerModel(
+            checkerIdx !== -1
+              ? options[checkerIdx].value
+              : options[Math.min(1, options.length - 1)].value,
+          );
         }
       })
       .catch(() => {
@@ -68,12 +80,12 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
   return (
     <form
       onSubmit={handleSubmit}
-      className="w-full max-w-2xl bg-surface border border-slate-800 rounded-2xl p-6 flex flex-col gap-6 shadow-2xl"
+      className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col gap-6 shadow-2xl shadow-black/50"
       noValidate
     >
       {/* Topic */}
       <div className="flex flex-col gap-1.5">
-        <label htmlFor="topic" className="text-sm font-medium text-slate-300">
+        <label htmlFor="topic" className="text-sm font-medium text-zinc-300">
           Debate Topic <span className="text-red-400">*</span>
         </label>
         <textarea
@@ -87,11 +99,11 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
           rows={3}
           required
           className={cn(
-            'w-full bg-surface-raised border rounded-lg px-3 py-2 text-slate-50 placeholder-slate-500',
-            'focus:outline-none focus:ring-2 transition-colors duration-150 resize-none text-base',
+            'w-full bg-zinc-950 border rounded-xl px-3 py-2.5 text-zinc-50 placeholder-zinc-600',
+            'focus:outline-none focus:ring-2 transition-colors duration-150 resize-none text-sm',
             topicError
               ? 'border-red-500 focus:border-red-400 focus:ring-red-500/30'
-              : 'border-slate-700 focus:border-maker focus:ring-maker/30'
+              : 'border-zinc-700 focus:border-maker focus:ring-maker/20',
           )}
         />
         {topicError && (
@@ -119,11 +131,11 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
         />
       </div>
 
-      {/* Max turns + verbose row */}
+      {/* Max turns + toggles row */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
         {/* Max turns */}
         <div className="flex flex-col gap-1.5 w-full sm:w-40">
-          <label htmlFor="maxTurns" className="text-sm font-medium text-slate-300">
+          <label htmlFor="maxTurns" className="text-sm font-medium text-zinc-300">
             Max Turns
           </label>
           <input
@@ -136,7 +148,7 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
             onChange={(e) =>
               setMaxTurns(Math.min(20, Math.max(2, parseInt(e.target.value, 10) || 2)))
             }
-            className="w-full bg-surface-raised border border-slate-700 rounded-lg px-3 py-2 text-slate-50 focus:outline-none focus:ring-2 focus:border-maker focus:ring-maker/30 transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2 text-zinc-50 focus:outline-none focus:ring-2 focus:border-maker focus:ring-maker/20 transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed"
           />
         </div>
 
@@ -152,17 +164,17 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
             <div
               className={cn(
                 'w-10 h-6 rounded-full transition-colors duration-200',
-                unlimitedTurns ? 'bg-maker' : 'bg-slate-700'
+                unlimitedTurns ? 'bg-maker' : 'bg-zinc-700',
               )}
             />
             <div
               className={cn(
                 'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200',
-                unlimitedTurns ? 'translate-x-4' : 'translate-x-0'
+                unlimitedTurns ? 'translate-x-4' : 'translate-x-0',
               )}
             />
           </div>
-          <span className="text-sm text-slate-300">Unlimited turns</span>
+          <span className="text-sm text-zinc-400">Unlimited turns</span>
         </label>
 
         {/* Verbose toggle */}
@@ -177,17 +189,17 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
             <div
               className={cn(
                 'w-10 h-6 rounded-full transition-colors duration-200',
-                verbose ? 'bg-maker' : 'bg-slate-700'
+                verbose ? 'bg-maker' : 'bg-zinc-700',
               )}
             />
             <div
               className={cn(
                 'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200',
-                verbose ? 'translate-x-4' : 'translate-x-0'
+                verbose ? 'translate-x-4' : 'translate-x-0',
               )}
             />
           </div>
-          <span className="text-sm text-slate-300">Show thinking (verbose)</span>
+          <span className="text-sm text-zinc-400">Show thinking</span>
         </label>
       </div>
 
