@@ -3,8 +3,13 @@ import react from '@vitejs/plugin-react';
 import tsconfigPaths from 'vite-tsconfig-paths';
 import { VitePWA } from 'vite-plugin-pwa';
 
+const buildDate = new Date().toISOString().slice(0, 10).replace(/-/g, '.');
+
 export default defineConfig({
   base: '/',
+  define: {
+    __APP_VERSION__: JSON.stringify(buildDate),
+  },
   server: {
     proxy: {
       '/api': {

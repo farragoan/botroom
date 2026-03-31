@@ -4,6 +4,9 @@ import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
+  define: {
+    __APP_VERSION__: JSON.stringify('2099.01.01'),
+  },
   test: {
     environment: 'jsdom',
     globals: true,
