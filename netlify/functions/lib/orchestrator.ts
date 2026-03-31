@@ -169,8 +169,12 @@ export async function* runDebate(
       turns.push(checkerTurn);
       yield { type: 'turn', data: checkerTurn };
 
-      // Check if both concluded after turn 2
-      if (lastMakerAction === 'CONCLUDE' && lastCheckerAction === 'CONCLUDE') {
+      // Termination helper: CONCLUDE or CONCEDE ends the debate
+      const isTerminal = (action: AgentResponse['action']) =>
+        action === 'CONCLUDE' || action === 'CONCEDE';
+
+      // Check if either agent concluded/conceded after turn 2
+      if (isTerminal(lastMakerAction) || isTerminal(lastCheckerAction)) {
         concludedNaturally = true;
       } else {
         // Main debate loop: alternate MAKER/CHECKER
@@ -196,6 +200,12 @@ export async function* runDebate(
           turns.push(mTurn);
           yield { type: 'turn', data: mTurn };
 
+          // If MAKER concluded or conceded, modbot closes — don't call CHECKER
+          if (isTerminal(lastMakerAction)) {
+            concludedNaturally = true;
+            break;
+          }
+
           if (turnNumber >= config.maxTurns) break;
 
           // CHECKER's turn
@@ -219,8 +229,8 @@ export async function* runDebate(
 
           lastCheckerMessage = cResponse.message;
 
-          // Termination: both agents CONCLUDE in their last turns
-          if (lastMakerAction === 'CONCLUDE' && lastCheckerAction === 'CONCLUDE') {
+          // If CHECKER concluded or conceded, modbot closes
+          if (isTerminal(lastCheckerAction)) {
             concludedNaturally = true;
             break;
           }

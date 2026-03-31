@@ -4,6 +4,15 @@ import { afterEach, vi } from 'vitest';
 
 afterEach(() => cleanup());
 
+// Mock Notification API (not available in jsdom)
+Object.defineProperty(globalThis, 'Notification', {
+  writable: true,
+  value: Object.assign(
+    vi.fn().mockImplementation(() => ({ close: vi.fn() })),
+    { permission: 'default', requestPermission: vi.fn().mockResolvedValue('granted') },
+  ),
+});
+
 // MSW setup will happen per-test
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
