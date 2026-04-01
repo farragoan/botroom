@@ -9,7 +9,7 @@ export default function DebatePage() {
 
   useEffect(() => {
     if (status === 'idle') {
-      navigate('/', { replace: true });
+      navigate('/arena', { replace: true });
     }
   }, [status, navigate]);
 
