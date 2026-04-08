@@ -9,6 +9,11 @@ vi.mock('@/lib/api', () => ({
   streamDebate: vi.fn(),
 }));
 
+// Mock Clerk useAuth
+vi.mock('@clerk/react', () => ({
+  useAuth: () => ({ getToken: vi.fn().mockResolvedValue('mock-token') }),
+}));
+
 import { streamDebate } from '@/lib/api';
 
 const mockStreamDebate = vi.mocked(streamDebate);
@@ -123,7 +128,7 @@ describe('useDebate()', () => {
           { type: 'turn', data: mockTurn },
           {
             type: 'synthesis',
-            data: { synthesis: 'Final summary', concluded_naturally: true },
+            data: { synthesis: 'Final summary', concludedNaturally: true },
           },
         ])
       );
@@ -143,7 +148,7 @@ describe('useDebate()', () => {
         makeAsyncGenerator([
           {
             type: 'synthesis',
-            data: { synthesis: 'Summary', concluded_naturally: false },
+            data: { synthesis: 'Summary', concludedNaturally: false },
           },
         ])
       );
@@ -162,7 +167,7 @@ describe('useDebate()', () => {
         makeAsyncGenerator([
           {
             type: 'synthesis',
-            data: { synthesis: 'Done', concluded_naturally: true },
+            data: { synthesis: 'Done', concludedNaturally: true },
           },
         ])
       );
@@ -305,7 +310,7 @@ describe('useDebate()', () => {
     it('aborts the stream by rejecting with AbortError', async () => {
       let abortSignal: AbortSignal | undefined;
 
-      mockStreamDebate.mockImplementation(async function* (_config, signal) {
+      mockStreamDebate.mockImplementation(async function* (_config, _token, signal) {
         abortSignal = signal;
         // Simulate a long-running stream by waiting for abort
         await new Promise<void>((_resolve, reject) => {
@@ -323,6 +328,11 @@ describe('useDebate()', () => {
       let debatePromise: Promise<void>;
       act(() => {
         debatePromise = result.current.startDebate(mockConfig);
+      });
+
+      // Wait for getToken() to resolve so streamDebate is called and signal is captured
+      await act(async () => {
+        await Promise.resolve();
       });
 
       // Cancel it

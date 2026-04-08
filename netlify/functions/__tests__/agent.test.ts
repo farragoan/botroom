@@ -191,9 +191,9 @@ describe('Agent', () => {
     const agent = new Agent('MAKER', 'model', 'key', 'https://api.groq.com/openai/v1', 'test topic');
     const result = await agent.respond('Start');
 
-    expect(result.thinking).toBe(VALID_RESPONSE.thinking);
-    expect(result.message).toBe(VALID_RESPONSE.message);
-    expect(result.action).toBe('CONTINUE');
+    expect(result.response.thinking).toBe(VALID_RESPONSE.thinking);
+    expect(result.response.message).toBe(VALID_RESPONSE.message);
+    expect(result.response.action).toBe('CONTINUE');
   });
 
   it('maintains conversation history across multiple calls', async () => {
@@ -265,7 +265,7 @@ describe('Agent', () => {
     vi.useRealTimers();
 
     expect(mockFetch).toHaveBeenCalledTimes(2);
-    expect(result.action).toBe('CONTINUE');
+    expect(result.response.action).toBe('CONTINUE');
   });
 
   it('throws after exhausting all retries on persistent errors', async () => {
@@ -306,6 +306,6 @@ describe('Agent', () => {
     const agent = new Agent('CHECKER', 'model', 'key', 'https://api.groq.com/openai/v1', 'test topic');
     const result = await agent.respond('What do you think?');
 
-    expect(result.action).toBe('CONTINUE');
+    expect(result.response.action).toBe('CONTINUE');
   });
 });

@@ -1,6 +1,6 @@
 import { Agent } from './agent.js';
 import { Observer } from './observer.js';
-import type { AgentResponse, DebateConfig, Turn } from './types.js';
+import type { AgentResponse, DebateConfig, TokenUsage, Turn } from './types.js';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
 const OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1';
@@ -216,9 +216,12 @@ export async function* runDebate(
     turnNumber++;
     const makerOpeningMessage = `Begin your opening position on: ${config.topic}`;
     let makerResponse: AgentResponse;
+    let makerUsage: TokenUsage;
 
     try {
-      makerResponse = await maker.respond(makerOpeningMessage);
+      const result = await maker.respond(makerOpeningMessage);
+      makerResponse = result.response;
+      makerUsage = result.usage;
     } catch (err) {
       yield {
         type: 'error',
@@ -234,6 +237,7 @@ export async function* runDebate(
       turnNumber,
       agent: 'MAKER',
       response: makerResponse,
+      tokenUsage: makerUsage,
     };
     turns.push(makerTurn);
     yield { type: 'turn', data: makerTurn };
@@ -251,9 +255,12 @@ export async function* runDebate(
     if (turnNumber < config.maxTurns) {
       turnNumber++;
       let checkerResponse: AgentResponse;
+      let checkerUsage: TokenUsage;
 
       try {
-        checkerResponse = await checker.respond(makerResponse.message);
+        const result = await checker.respond(makerResponse.message);
+        checkerResponse = result.response;
+        checkerUsage = result.usage;
       } catch (err) {
         yield {
           type: 'error',
@@ -274,6 +281,7 @@ export async function* runDebate(
         turnNumber,
         agent: 'CHECKER',
         response: checkerResponse,
+        tokenUsage: checkerUsage,
       };
       turns.push(checkerTurn);
       yield { type: 'turn', data: checkerTurn };
@@ -293,9 +301,12 @@ export async function* runDebate(
           // MAKER's turn
           turnNumber++;
           let mResponse: AgentResponse;
+          let mUsage: TokenUsage;
 
           try {
-            mResponse = await maker.respond(lastCheckerMessage);
+            const result = await maker.respond(lastCheckerMessage);
+            mResponse = result.response;
+            mUsage = result.usage;
           } catch (err) {
             yield {
               type: 'error',
@@ -306,7 +317,7 @@ export async function* runDebate(
 
           mResponse = applyObserver(mResponse, turnNumber);
           lastMakerAction = mResponse.action;
-          const mTurn: Turn = { turnNumber, agent: 'MAKER', response: mResponse };
+          const mTurn: Turn = { turnNumber, agent: 'MAKER', response: mResponse, tokenUsage: mUsage };
           turns.push(mTurn);
           yield { type: 'turn', data: mTurn };
 
@@ -321,9 +332,12 @@ export async function* runDebate(
           // CHECKER's turn
           turnNumber++;
           let cResponse: AgentResponse;
+          let cUsage: TokenUsage;
 
           try {
-            cResponse = await checker.respond(mResponse.message);
+            const result = await checker.respond(mResponse.message);
+            cResponse = result.response;
+            cUsage = result.usage;
           } catch (err) {
             yield {
               type: 'error',
@@ -334,7 +348,7 @@ export async function* runDebate(
 
           cResponse = applyObserver(cResponse, turnNumber);
           lastCheckerAction = cResponse.action;
-          const cTurn: Turn = { turnNumber, agent: 'CHECKER', response: cResponse };
+          const cTurn: Turn = { turnNumber, agent: 'CHECKER', response: cResponse, tokenUsage: cUsage };
           turns.push(cTurn);
           yield { type: 'turn', data: cTurn };
 

@@ -12,13 +12,19 @@
     "test:coverage": "vitest run --coverage",
     "test:ui": "vitest --ui",
     "typecheck": "tsc --noEmit",
-    "prepare": "husky"
+    "prepare": "husky",
+    "migrate": "npx tsx scripts/migrate.ts"
   },
   "dependencies": {
+    "@clerk/backend": "^3.2.1",
+    "@clerk/react": "^6.1.1",
+    "@libsql/client": "^0.17.0",
     "framer-motion": "^11.3.0",
+    "razorpay": "^2.9.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-router-dom": "^6.24.1",
+    "uuid": "^13.0.0",
     "zustand": "^4.5.4"
   },
   "devDependencies": {
@@ -28,10 +34,12 @@
     "@testing-library/user-event": "^14.5.2",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
+    "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.3.1",
     "@vitest/coverage-v8": "^2.0.3",
     "@vitest/ui": "^2.0.3",
     "autoprefixer": "^10.4.19",
+    "dotenv": "^17.4.1",
     "husky": "^9.1.7",
     "jsdom": "^24.1.0",
     "msw": "^2.3.4",

@@ -14,6 +14,11 @@ publish   = "dist"
     Referrer-Policy   = "strict-origin-when-cross-origin"
 
 [[redirects]]
+  from   = "/api/debates/:id"
+  to     = "/.netlify/functions/debate-detail"
+  status = 200
+
+[[redirects]]
   from   = "/api/*"
   to     = "/.netlify/functions/:splat"
   status = 200

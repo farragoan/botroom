@@ -36,11 +36,15 @@ export async function fetchClarificationQuestion(config: DebateConfig): Promise<
 
 export async function* streamDebate(
   config: DebateConfig,
+  token: string,
   signal?: AbortSignal
 ): AsyncGenerator<{ type: string; data: unknown }> {
   const response = await fetch(`${API_BASE}/debate`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`,
+    },
     body: JSON.stringify(config),
     signal,
   });

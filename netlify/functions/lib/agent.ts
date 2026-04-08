@@ -1,4 +1,4 @@
-import type { AgentRole, AgentResponse, ToolUseRequest } from './types.js';
+import type { AgentRole, AgentResponse, TokenUsage, ToolUseRequest } from './types.js';
 import { webSearch, formatSearchResults } from './tools/webSearch.js';
 
 // ── Tool instructions (appended to system prompt when web search is enabled) ──
@@ -232,10 +232,10 @@ export class Agent {
   }
 
   /**
-   * Make a single LLM API call (with retry logic) and return the raw content string.
+   * Make a single LLM API call (with retry logic) and return raw content + token usage.
    * Does NOT modify this.messages.
    */
-  private async callLLM(): Promise<string> {
+  private async callLLM(): Promise<{ content: string; usage: TokenUsage }> {
     const systemPrompt =
       this.role === 'MAKER'
         ? MAKER_SYSTEM(this.topic, this.enableWebSearch)
@@ -281,9 +281,13 @@ export class Agent {
 
         const data = (await response.json()) as {
           choices?: Array<{ message?: { content?: string } }>;
+          usage?: { prompt_tokens?: number; completion_tokens?: number };
         };
 
-        return data?.choices?.[0]?.message?.content ?? '';
+        const content = data?.choices?.[0]?.message?.content ?? '';
+        const promptTokens = data?.usage?.prompt_tokens ?? 0;
+        const completionTokens = data?.usage?.completion_tokens ?? 0;
+        return { content, usage: { promptTokens, completionTokens } };
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         if (attempt < MAX_RETRIES - 1) {
@@ -304,17 +308,21 @@ export class Agent {
    *     → execute search, inject results as a user message, repeat.
    *  3. Otherwise extract and return the final AgentResponse.
    */
-  async respond(incomingMessage: string): Promise<AgentResponse> {
+  async respond(incomingMessage: string): Promise<{ response: AgentResponse; usage: TokenUsage }> {
     this.messages.push({ role: 'user', content: incomingMessage });
 
     let toolCallsUsed = 0;
+    const accumulatedUsage: TokenUsage = { promptTokens: 0, completionTokens: 0 };
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
       let rawContent: string;
 
       try {
-        rawContent = await this.callLLM();
+        const result = await this.callLLM();
+        rawContent = result.content;
+        accumulatedUsage.promptTokens += result.usage.promptTokens;
+        accumulatedUsage.completionTokens += result.usage.completionTokens;
       } catch (err) {
         // On callLLM failure, remove the user message we pushed and re-throw
         this.messages.pop();
@@ -347,7 +355,7 @@ export class Agent {
       // No tool use or budget exhausted — this is the final response
       const agentResponse = extractJSON(rawContent);
       this.messages.push({ role: 'assistant', content: rawContent });
-      return agentResponse;
+      return { response: agentResponse, usage: accumulatedUsage };
     }
   }
 

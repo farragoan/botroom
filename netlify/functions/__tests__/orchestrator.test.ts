@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import type { AgentResponse } from '../lib/types.js';
+import type { AgentResponse, TokenUsage } from '../lib/types.js';
 
 // ---------------------------------------------------------------------------
 // Mock the Agent class before importing the orchestrator so that all Agent
@@ -23,11 +23,11 @@ vi.mock('../lib/agent.js', async (importOriginal) => {
       this.respondImpl = async () => defaultRespond();
     }
 
-    async respond(incomingMessage: string): Promise<AgentResponse> {
+    async respond(incomingMessage: string): Promise<{ response: AgentResponse; usage: TokenUsage }> {
       this.messages.push({ role: 'user', content: incomingMessage });
       const response = await this.respondImpl();
       this.messages.push({ role: 'assistant', content: response.message });
-      return response;
+      return { response, usage: { promptTokens: 0, completionTokens: 0 } };
     }
 
     reset() {
