@@ -51,7 +51,17 @@ export default async (req: Request): Promise<Response> => {
     });
   }
 
-  let body: { topic?: string; makerModel?: string; checkerModel?: string; maxTurns?: number; verbose?: boolean };
+  let body: {
+    topic?: string;
+    makerModel?: string;
+    checkerModel?: string;
+    maxTurns?: number;
+    verbose?: boolean;
+    allowClarification?: boolean;
+    minTurnsBeforeConclusion?: number;
+    enableWebSearch?: boolean;
+  };
+
   try {
     body = (await req.json()) as typeof body;
   } catch {
@@ -60,7 +70,16 @@ export default async (req: Request): Promise<Response> => {
     });
   }
 
-  const { topic, makerModel = 'llama-3.3-70b-versatile', checkerModel = 'llama-3.3-70b-versatile', maxTurns = 8, verbose = false } = body;
+  const {
+    topic,
+    makerModel = 'llama-3.3-70b-versatile',
+    checkerModel = 'llama-3.3-70b-versatile',
+    maxTurns = 8,
+    verbose = false,
+    allowClarification = false,
+    minTurnsBeforeConclusion,
+    enableWebSearch = false,
+  } = body;
 
   if (!topic?.trim()) {
     return new Response(JSON.stringify({ error: 'topic is required' }), {
@@ -90,6 +109,7 @@ export default async (req: Request): Promise<Response> => {
 
   const enableOpenRouter = process.env.ENABLE_OPENROUTER === 'true';
   const openRouterApiKey = enableOpenRouter ? process.env.OPENROUTER_API_KEY : undefined;
+  const tavilyApiKey = process.env.TAVILY_API_KEY;
 
   const config: DebateConfig = {
     topic: topic.trim(),
@@ -97,6 +117,11 @@ export default async (req: Request): Promise<Response> => {
     checkerModel,
     maxTurns: Math.max(1, Math.min(Number(maxTurns) || 8, 30)),
     verbose: Boolean(verbose),
+    allowClarification: Boolean(allowClarification),
+    minTurnsBeforeConclusion: minTurnsBeforeConclusion !== undefined
+      ? Math.max(0, Number(minTurnsBeforeConclusion) || 0)
+      : undefined,
+    enableWebSearch: Boolean(enableWebSearch),
   };
 
   // Create debate row
@@ -115,7 +140,7 @@ export default async (req: Request): Promise<Response> => {
       let totalCostPaise = 0;
 
       try {
-        for await (const event of runDebate(config, groqApiKey, openRouterApiKey)) {
+        for await (const event of runDebate(config, groqApiKey, openRouterApiKey, tavilyApiKey)) {
           if (event.type === 'turn') {
             enqueue(sseMessage('turn', event.data));
 

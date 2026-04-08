@@ -9,7 +9,7 @@ export default function DebatePage() {
 
   useEffect(() => {
     if (status === 'idle') {
-      navigate('/', { replace: true });
+      navigate('/arena', { replace: true });
     }
   }, [status, navigate]);
 
@@ -18,7 +18,8 @@ export default function DebatePage() {
   }
 
   return (
-    <div className="min-h-[calc(100vh-56px)] flex flex-col">
+    // Fixed-height container so only the message feed scrolls, not the whole page
+    <div className="h-[calc(100vh-3.5rem)] flex flex-col overflow-hidden">
       <DebateArena />
     </div>
   );

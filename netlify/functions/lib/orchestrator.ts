@@ -1,4 +1,5 @@
 import { Agent } from './agent.js';
+import { Observer } from './observer.js';
 import type { AgentResponse, DebateConfig, TokenUsage, Turn } from './types.js';
 
 const GROQ_BASE_URL = 'https://api.groq.com/openai/v1';
@@ -86,19 +87,125 @@ async function generateSynthesis(
   return 'Synthesis could not be generated.';
 }
 
+/**
+ * Ask MAKER whether it needs a clarifying question before the debate begins.
+ *
+ * Returns the question string if clarification is needed, or null if the topic
+ * is clear enough to proceed immediately.
+ *
+ * Callers should append the user's answer to config.topic before calling runDebate:
+ *   `topic + "\n\n[User clarification: " + answer + "]"`
+ */
+export async function getClarificationQuestion(
+  config: DebateConfig,
+  groqApiKey: string,
+  openRouterApiKey?: string,
+): Promise<string | null> {
+  const cfg = resolveAgentConfig(config.makerModel, groqApiKey, openRouterApiKey);
+
+  const prompt =
+    `You will soon debate the following topic as MAKER (proposing and defending a position):\n\n` +
+    `"${config.topic}"\n\n` +
+    `Before the debate begins, do you need any clarification from the user to stake a precise, ` +
+    `well-scoped position?\n\n` +
+    `If the topic is clear and unambiguous enough to argue immediately, respond with ONLY:\n` +
+    `{"needs_clarification":false,"question":null}\n\n` +
+    `If the topic is genuinely ambiguous or scope-dependent in a way that would significantly ` +
+    `change your position, respond with ONLY:\n` +
+    `{"needs_clarification":true,"question":"<your single most important clarifying question>"}\n\n` +
+    `Return ONLY valid JSON. No preamble, no explanation.`;
+
+  try {
+    const response = await fetch(`${cfg.baseUrl}/chat/completions`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${cfg.apiKey}`,
+      },
+      body: JSON.stringify({
+        model: cfg.modelId,
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3,
+      }),
+    });
+
+    if (!response.ok) return null;
+
+    const data = (await response.json()) as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const content = data?.choices?.[0]?.message?.content ?? '';
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) return null;
+
+    const parsed = JSON.parse(jsonMatch[0]) as {
+      needs_clarification?: boolean;
+      question?: string | null;
+    };
+
+    if (parsed.needs_clarification === true && typeof parsed.question === 'string') {
+      return parsed.question.trim() || null;
+    }
+  } catch {
+    // Clarification is optional — fall through to null
+  }
+
+  return null;
+}
+
 export async function* runDebate(
   config: DebateConfig,
   groqApiKey: string,
   openRouterApiKey?: string,
+  tavilyApiKey?: string,
 ): AsyncGenerator<DebateEvent> {
   const turns: Turn[] = [];
+
+  // Observer enforces minimum turns before CONCLUDE/CONCEDE is allowed.
+  // Default 0 (disabled) to preserve backward compatibility with existing callers.
+  const minTurns = config.minTurnsBeforeConclusion ?? 0;
+  const observer = new Observer({ minTurns });
+
+  /**
+   * Apply observer veto: if the agent wants to CONCLUDE/CONCEDE too early,
+   * override the action to CONTINUE and append a moderator note to the message.
+   */
+  function applyObserver(response: AgentResponse, turnNumber: number): AgentResponse {
+    if (response.action === 'CONTINUE') return response;
+    const verdict = observer.evaluateTermination(response.action, turnNumber);
+    if (verdict.allow) return response;
+    return {
+      ...response,
+      action: 'CONTINUE',
+      message: response.message + '\n\n' + verdict.reason,
+      conclusion_summary: null,
+    };
+  }
+
+  // Resolve web-search capability
+  const effectiveTavilyKey = config.enableWebSearch ? (tavilyApiKey ?? process.env.TAVILY_API_KEY) : undefined;
 
   try {
     const makerCfg = resolveAgentConfig(config.makerModel, groqApiKey, openRouterApiKey);
     const checkerCfg = resolveAgentConfig(config.checkerModel, groqApiKey, openRouterApiKey);
 
-    const maker = new Agent('MAKER', makerCfg.modelId, makerCfg.apiKey, makerCfg.baseUrl, config.topic);
-    const checker = new Agent('CHECKER', checkerCfg.modelId, checkerCfg.apiKey, checkerCfg.baseUrl, config.topic);
+    const maker = new Agent(
+      'MAKER',
+      makerCfg.modelId,
+      makerCfg.apiKey,
+      makerCfg.baseUrl,
+      config.topic,
+      effectiveTavilyKey,
+    );
+    const checker = new Agent(
+      'CHECKER',
+      checkerCfg.modelId,
+      checkerCfg.apiKey,
+      checkerCfg.baseUrl,
+      config.topic,
+      effectiveTavilyKey,
+    );
 
     let turnNumber = 0;
     let lastMakerAction: AgentResponse['action'] = 'CONTINUE';
@@ -123,6 +230,7 @@ export async function* runDebate(
       return;
     }
 
+    makerResponse = applyObserver(makerResponse, turnNumber);
     lastMakerAction = makerResponse.action;
 
     const makerTurn: Turn = {
@@ -166,6 +274,7 @@ export async function* runDebate(
         return;
       }
 
+      checkerResponse = applyObserver(checkerResponse, turnNumber);
       lastCheckerAction = checkerResponse.action;
 
       const checkerTurn: Turn = {
@@ -177,8 +286,12 @@ export async function* runDebate(
       turns.push(checkerTurn);
       yield { type: 'turn', data: checkerTurn };
 
-      // Check if both concluded after turn 2
-      if (lastMakerAction === 'CONCLUDE' && lastCheckerAction === 'CONCLUDE') {
+      // Termination helper: CONCLUDE or CONCEDE ends the debate (after observer approval)
+      const isTerminal = (action: AgentResponse['action']) =>
+        action === 'CONCLUDE' || action === 'CONCEDE';
+
+      // Check if either agent concluded/conceded after turn 2
+      if (isTerminal(lastMakerAction) || isTerminal(lastCheckerAction)) {
         concludedNaturally = true;
       } else {
         // Main debate loop: alternate MAKER/CHECKER
@@ -202,10 +315,17 @@ export async function* runDebate(
             break;
           }
 
+          mResponse = applyObserver(mResponse, turnNumber);
           lastMakerAction = mResponse.action;
           const mTurn: Turn = { turnNumber, agent: 'MAKER', response: mResponse, tokenUsage: mUsage };
           turns.push(mTurn);
           yield { type: 'turn', data: mTurn };
+
+          // If MAKER concluded or conceded, debate closes — don't call CHECKER
+          if (isTerminal(lastMakerAction)) {
+            concludedNaturally = true;
+            break;
+          }
 
           if (turnNumber >= config.maxTurns) break;
 
@@ -226,6 +346,7 @@ export async function* runDebate(
             break;
           }
 
+          cResponse = applyObserver(cResponse, turnNumber);
           lastCheckerAction = cResponse.action;
           const cTurn: Turn = { turnNumber, agent: 'CHECKER', response: cResponse, tokenUsage: cUsage };
           turns.push(cTurn);
@@ -233,8 +354,8 @@ export async function* runDebate(
 
           lastCheckerMessage = cResponse.message;
 
-          // Termination: both agents CONCLUDE in their last turns
-          if (lastMakerAction === 'CONCLUDE' && lastCheckerAction === 'CONCLUDE') {
+          // If CHECKER concluded or conceded, debate closes
+          if (isTerminal(lastCheckerAction)) {
             concludedNaturally = true;
             break;
           }

@@ -1,5 +1,5 @@
 import { render, screen, fireEvent } from '@testing-library/react';
-import { TurnCard } from '@/features/debate/components/TurnCard';
+import { TurnCard, READ_MORE_THRESHOLD } from '@/features/debate/components/TurnCard';
 import type { Turn } from '@/types/debate';
 
 const makerTurn: Turn = {
@@ -38,11 +38,40 @@ const concludeTurn: Turn = {
   },
 };
 
+/** Generates a message string longer than READ_MORE_THRESHOLD */
+function longMessage(extra = 0): string {
+  return 'A'.repeat(READ_MORE_THRESHOLD + 1 + extra);
+}
+
+const longTurn: Turn = {
+  turnNumber: 4,
+  agent: 'MAKER',
+  response: {
+    thinking: '',
+    message: longMessage(),
+    action: 'CONTINUE',
+    conceded_points: [],
+    conclusion_summary: null,
+  },
+};
+
+const shortTurn: Turn = {
+  turnNumber: 5,
+  agent: 'CHECKER',
+  response: {
+    thinking: '',
+    message: 'Short message.',
+    action: 'CONTINUE',
+    conceded_points: [],
+    conclusion_summary: null,
+  },
+};
+
 describe('TurnCard', () => {
+  // ── Rendering ────────────────────────────────────────────────
   it('renders MAKER turn with maker color class', () => {
     const { container } = render(<TurnCard turn={makerTurn} />);
     expect(screen.getByText('MAKER')).toBeInTheDocument();
-    // border-l-maker on the card
     const card = container.firstChild as HTMLElement;
     expect(card.className).toMatch(/border-l-maker/);
   });
@@ -54,9 +83,9 @@ describe('TurnCard', () => {
     expect(card.className).toMatch(/border-l-checker/);
   });
 
-  it('shows turn number', () => {
+  it('shows turn number in compact format', () => {
     render(<TurnCard turn={makerTurn} />);
-    expect(screen.getByText('Turn 1')).toBeInTheDocument();
+    expect(screen.getByText('T1')).toBeInTheDocument();
   });
 
   it('shows action badge', () => {
@@ -77,22 +106,23 @@ describe('TurnCard', () => {
   it('shows the message text', () => {
     render(<TurnCard turn={makerTurn} />);
     expect(
-      screen.getByText('AI should indeed be regulated to ensure safety.')
+      screen.getByText('AI should indeed be regulated to ensure safety.'),
     ).toBeInTheDocument();
   });
 
   it('shows conceded points when present', () => {
     render(<TurnCard turn={checkerTurn} />);
-    expect(screen.getByText('Conceded Points')).toBeInTheDocument();
+    expect(screen.getByText('Conceded')).toBeInTheDocument();
     expect(screen.getByText('Safety is important')).toBeInTheDocument();
     expect(screen.getByText('Oversight has value')).toBeInTheDocument();
   });
 
-  it('does not show conceded points when empty', () => {
+  it('does not show conceded section when list is empty', () => {
     render(<TurnCard turn={makerTurn} />);
-    expect(screen.queryByText('Conceded Points')).not.toBeInTheDocument();
+    expect(screen.queryByText('Conceded')).not.toBeInTheDocument();
   });
 
+  // ── Verbose / Thinking ───────────────────────────────────────
   it('hides thinking toggle when verbose is false', () => {
     render(<TurnCard turn={makerTurn} verbose={false} />);
     expect(screen.queryByText('Thinking')).not.toBeInTheDocument();
@@ -105,14 +135,52 @@ describe('TurnCard', () => {
 
   it('expands thinking section on click when verbose', () => {
     render(<TurnCard turn={makerTurn} verbose={true} />);
-    const toggle = screen.getByText('Thinking');
-    // Thinking text not visible before click
-    expect(
-      screen.queryByText('I am thinking deeply about this topic.')
-    ).not.toBeInTheDocument();
-    fireEvent.click(toggle);
-    expect(
-      screen.getByText('I am thinking deeply about this topic.')
-    ).toBeInTheDocument();
+    expect(screen.queryByText('I am thinking deeply about this topic.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByText('Thinking'));
+    expect(screen.getByText('I am thinking deeply about this topic.')).toBeInTheDocument();
+  });
+
+  // ── Read more / Read less ────────────────────────────────────
+  it('does not show Read more button for short messages', () => {
+    render(<TurnCard turn={shortTurn} />);
+    expect(screen.queryByTestId('read-more-btn')).not.toBeInTheDocument();
+  });
+
+  it('shows Read more button when message exceeds threshold', () => {
+    render(<TurnCard turn={longTurn} />);
+    expect(screen.getByTestId('read-more-btn')).toBeInTheDocument();
+    expect(screen.getByTestId('read-more-btn')).toHaveTextContent('↓ Read more');
+  });
+
+  it('applies line-clamp-3 when message is long and collapsed', () => {
+    render(<TurnCard turn={longTurn} />);
+    const msgEl = screen.getByTestId('turn-message');
+    expect(msgEl.className).toMatch(/line-clamp-3/);
+  });
+
+  it('removes line-clamp-3 after clicking Read more', () => {
+    render(<TurnCard turn={longTurn} />);
+    fireEvent.click(screen.getByTestId('read-more-btn'));
+    const msgEl = screen.getByTestId('turn-message');
+    expect(msgEl.className).not.toMatch(/line-clamp-3/);
+  });
+
+  it('changes button text to Read less after expanding', () => {
+    render(<TurnCard turn={longTurn} />);
+    fireEvent.click(screen.getByTestId('read-more-btn'));
+    expect(screen.getByTestId('read-more-btn')).toHaveTextContent('↑ Read less');
+  });
+
+  it('re-collapses when Read less is clicked', () => {
+    render(<TurnCard turn={longTurn} />);
+    fireEvent.click(screen.getByTestId('read-more-btn'));
+    fireEvent.click(screen.getByTestId('read-more-btn'));
+    const msgEl = screen.getByTestId('turn-message');
+    expect(msgEl.className).toMatch(/line-clamp-3/);
+    expect(screen.getByTestId('read-more-btn')).toHaveTextContent('↓ Read more');
+  });
+
+  it('READ_MORE_THRESHOLD is 280', () => {
+    expect(READ_MORE_THRESHOLD).toBe(280);
   });
 });
