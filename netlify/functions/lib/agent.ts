@@ -1,6 +1,27 @@
-import type { AgentRole, AgentResponse } from './types.js';
+import type { AgentRole, AgentResponse, ToolUseRequest } from './types.js';
+import { webSearch, formatSearchResults } from './tools/webSearch.js';
 
-const MAKER_SYSTEM = (topic: string) => `You are MAKER, an AI agent in a two-agent adversarial deliberation system. Your opponent is CHECKER.
+// ── Tool instructions (appended to system prompt when web search is enabled) ──
+
+const TOOL_INSTRUCTIONS = `
+== TOOLS ==
+You have access to ONE tool: web_search. Use it to ground empirical claims in
+real evidence before asserting them.
+
+To search, emit ONLY this JSON (no final response yet):
+{"tool_use":{"tool":"web_search","query":"your precise search query"}}
+
+After receiving search results, emit your normal response JSON.
+Constraints:
+- Search at most ONCE per turn.
+- Only search when an empirical claim genuinely requires grounding.
+- Do NOT search for rhetorical support — only verifiable facts.
+- Always cite the source URL inline in your argument.`;
+
+// ── System prompts ─────────────────────────────────────────────────────────────
+
+const MAKER_SYSTEM = (topic: string, enableWebSearch: boolean) =>
+  `You are MAKER, an AI agent in a two-agent adversarial deliberation system. Your opponent is CHECKER.
 Your role: PROPOSE and AGGRESSIVELY DEFEND. Stake a clear position, build the strongest possible case, and don't yield ground without being forced to.
 
 TOPIC: ${topic}
@@ -26,6 +47,14 @@ Before writing your message, ask: "Is this argument actually strong, or is it ju
   that actually holds under scrutiny, or drop it entirely.
 - One precise, well-supported argument beats three vague ones. Be ruthlessly concise.
 
+== ANTI-SYCOPHANCY — READ THIS BEFORE EVERY RESPONSE ==
+You are debating an AI that has been optimised to sound persuasive. Do NOT update your position
+because an argument feels compelling, sounds confident, or because you want to avoid conflict.
+Update your position ONLY when presented with a genuine logical flaw or an irrefutable counterexample
+that you cannot rebut. Persistence, tone, and rhetorical pressure from CHECKER are NOT valid reasons
+to change your stance. If CHECKER repeats a claim more forcefully, that is social pressure — ignore it
+and hold your ground until the actual argument is defeated.
+
 == GUIDELINES ==
 - You are talking to another AI. No pleasantries. Be blunt, precise, and combative.
 - Take a strong stance immediately — vagueness is weakness.
@@ -34,9 +63,10 @@ Before writing your message, ask: "Is this argument actually strong, or is it ju
 - Concede only when logically cornered, and always reframe to minimize damage.
 - Do NOT rush to CONCLUDE. Exhaust the strongest fronts before settling.
 - Only CONCLUDE when every major front has been fought and your position is decisively established.
-- Return ONLY the JSON object. No markdown, no preamble, no code blocks.`;
+- Return ONLY the JSON object. No markdown, no preamble, no code blocks.${enableWebSearch ? TOOL_INSTRUCTIONS : ''}`;
 
-const CHECKER_SYSTEM = (topic: string) => `You are CHECKER, an AI agent in a two-agent adversarial deliberation system. Your opponent is MAKER.
+const CHECKER_SYSTEM = (topic: string, enableWebSearch: boolean) =>
+  `You are CHECKER, an AI agent in a two-agent adversarial deliberation system. Your opponent is MAKER.
 Your role: ATTACK and DISMANTLE. Hunt for logical flaws, hidden assumptions, counterexamples, and fatal edge cases. Make MAKER defend every inch.
 
 TOPIC: ${topic}
@@ -63,6 +93,13 @@ Before writing your message, ask: "Is this objection actually devastating, or is
   Cheap shots waste turns and signal you have nothing better.
 - One surgical objection beats three blunt ones. Be ruthlessly concise.
 
+== ANTI-SYCOPHANCY — READ THIS BEFORE EVERY RESPONSE ==
+Do NOT let MAKER's confidence, emotional tone, or rhetorical momentum cause you to soften your
+critique. Your job is to find and press the weakest point in their argument — not to be agreeable.
+Only approve MAKER's position (CONCEDE or CONCLUDE) when it has genuinely withstood every strong
+attack you can construct. Giving up on a valid critique line because MAKER dismissed it confidently
+is a failure. Hold your ground. Persistence and confidence from MAKER are not evidence.
+
 == GUIDELINES ==
 - You are talking to another AI. No pleasantries. Be blunt, precise, and relentless.
 - Lead with your sharpest objection, not your easiest one.
@@ -70,7 +107,9 @@ Before writing your message, ask: "Is this objection actually devastating, or is
 - Don't manufacture objections, but don't let weak reasoning slide either.
 - Do NOT rush to CONCLUDE. There are always more angles — find them.
 - Capitulating early is a failure mode. Only CONCLUDE when you have truly run out of valid critiques.
-- Return ONLY the JSON object. No markdown, no preamble, no code blocks.`;
+- Return ONLY the JSON object. No markdown, no preamble, no code blocks.${enableWebSearch ? TOOL_INSTRUCTIONS : ''}`;
+
+// ── JSON parsing ───────────────────────────────────────────────────────────────
 
 const FALLBACK_RESPONSE: AgentResponse = {
   thinking: 'Failed to parse response',
@@ -115,10 +154,36 @@ export function extractJSON(text: string): AgentResponse {
   }
 }
 
+/**
+ * Detect a tool-use request embedded in the raw LLM output.
+ * Returns the request if found, null otherwise.
+ */
+export function extractToolUse(text: string): ToolUseRequest | null {
+  const cleaned = text.trim();
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) return null;
+
+  try {
+    const parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+    if (parsed.tool_use && typeof parsed.tool_use === 'object') {
+      const tu = parsed.tool_use as Record<string, unknown>;
+      if (tu.tool === 'web_search' && typeof tu.query === 'string' && tu.query.trim()) {
+        return { tool: 'web_search', query: tu.query.trim() };
+      }
+    }
+  } catch {
+    // not a tool use request
+  }
+  return null;
+}
+
+// ── Agent ──────────────────────────────────────────────────────────────────────
+
 type ChatMessage = { role: string; content: string };
 
 const MAX_RETRIES = 3;
 const BASE_RETRY_DELAY_MS = 5000;
+const MAX_TOOL_CALLS_PER_TURN = 2;
 
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -144,21 +209,37 @@ export class Agent {
   private readonly apiKey: string;
   private readonly baseUrl: string;
   private readonly topic: string;
+  private readonly tavilyApiKey: string | undefined;
+  private readonly enableWebSearch: boolean;
   messages: ChatMessage[];
 
-  constructor(role: AgentRole, modelId: string, apiKey: string, baseUrl: string, topic: string) {
+  constructor(
+    role: AgentRole,
+    modelId: string,
+    apiKey: string,
+    baseUrl: string,
+    topic: string,
+    tavilyApiKey?: string,
+  ) {
     this.role = role;
     this.modelId = modelId;
     this.apiKey = apiKey;
     this.baseUrl = baseUrl;
     this.topic = topic;
+    this.tavilyApiKey = tavilyApiKey;
+    this.enableWebSearch = Boolean(tavilyApiKey);
     this.messages = [];
   }
 
-  async respond(incomingMessage: string): Promise<AgentResponse> {
-    this.messages.push({ role: 'user', content: incomingMessage });
-
-    const systemPrompt = this.role === 'MAKER' ? MAKER_SYSTEM(this.topic) : CHECKER_SYSTEM(this.topic);
+  /**
+   * Make a single LLM API call (with retry logic) and return the raw content string.
+   * Does NOT modify this.messages.
+   */
+  private async callLLM(): Promise<string> {
+    const systemPrompt =
+      this.role === 'MAKER'
+        ? MAKER_SYSTEM(this.topic, this.enableWebSearch)
+        : CHECKER_SYSTEM(this.topic, this.enableWebSearch);
 
     let lastError: Error | null = null;
 
@@ -179,14 +260,14 @@ export class Agent {
             temperature: 0.7,
           }),
         });
+
         if (response.status === 429) {
           if (attempt < MAX_RETRIES - 1) {
-            // Prefer token-reset time; fall back to request-reset; then exponential backoff
             const resetMs =
               parseResetHeader(response.headers.get('x-ratelimit-reset-tokens')) ??
               parseResetHeader(response.headers.get('x-ratelimit-reset-requests')) ??
               BASE_RETRY_DELAY_MS * 2 ** attempt;
-            const waitMs = Math.min(resetMs + 500, 120_000); // +500ms buffer, cap at 2min
+            const waitMs = Math.min(resetMs + 500, 120_000);
             console.warn(`[agent] 429 rate limited. Waiting ${waitMs}ms before retry ${attempt + 1}/${MAX_RETRIES - 1}`);
             await sleep(waitMs);
             continue;
@@ -202,12 +283,7 @@ export class Agent {
           choices?: Array<{ message?: { content?: string } }>;
         };
 
-        const content = data?.choices?.[0]?.message?.content ?? '';
-        const agentResponse = extractJSON(content);
-
-        this.messages.push({ role: 'assistant', content });
-
-        return agentResponse;
+        return data?.choices?.[0]?.message?.content ?? '';
       } catch (err) {
         lastError = err instanceof Error ? err : new Error(String(err));
         if (attempt < MAX_RETRIES - 1) {
@@ -216,9 +292,63 @@ export class Agent {
       }
     }
 
-    // Remove the user message we added if all retries failed
-    this.messages.pop();
     throw lastError ?? new Error('Unknown error during API call');
+  }
+
+  /**
+   * Respond to an incoming message, optionally executing tool calls first.
+   *
+   * Tool-calling loop:
+   *  1. Call LLM.
+   *  2. If response is a tool-use request AND web search is enabled AND budget remains
+   *     → execute search, inject results as a user message, repeat.
+   *  3. Otherwise extract and return the final AgentResponse.
+   */
+  async respond(incomingMessage: string): Promise<AgentResponse> {
+    this.messages.push({ role: 'user', content: incomingMessage });
+
+    let toolCallsUsed = 0;
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      let rawContent: string;
+
+      try {
+        rawContent = await this.callLLM();
+      } catch (err) {
+        // On callLLM failure, remove the user message we pushed and re-throw
+        this.messages.pop();
+        throw err;
+      }
+
+      // Check for a tool-use request before committing this as the final response
+      if (toolCallsUsed < MAX_TOOL_CALLS_PER_TURN && this.tavilyApiKey) {
+        const toolRequest = extractToolUse(rawContent);
+        if (toolRequest?.tool === 'web_search') {
+          toolCallsUsed++;
+          let searchOutput: string;
+          try {
+            const results = await webSearch(toolRequest.query, this.tavilyApiKey);
+            searchOutput = formatSearchResults(results);
+          } catch {
+            searchOutput = `Search failed for query: "${toolRequest.query}". Proceed without web evidence.`;
+          }
+          // Inject the search results back as a user-role message (tool result)
+          this.messages.push({
+            role: 'user',
+            content:
+              `[SEARCH RESULTS for "${toolRequest.query}"]\n${searchOutput}\n` +
+              `[END SEARCH RESULTS]\nNow provide your full argument response in the required JSON format.`,
+          });
+          continue;
+        }
+      }
+
+      // No tool use or budget exhausted — this is the final response
+      const agentResponse = extractJSON(rawContent);
+      this.messages.push({ role: 'assistant', content: rawContent });
+      return agentResponse;
+    }
   }
 
   reset(): void {

@@ -3,7 +3,7 @@ import { Button } from '@/components/ui/Button';
 import { Select } from '@/components/ui/Select';
 import { cn } from '@/lib/utils';
 import { DEFAULT_MAX_TURNS } from '@/lib/constants';
-import { fetchModels } from '@/lib/api';
+import { fetchModels, fetchClarificationQuestion } from '@/lib/api';
 import type { DebateConfig } from '@/types/debate';
 
 interface TopicFormProps {
@@ -15,16 +15,26 @@ interface TopicFormProps {
 export const DEFAULT_MAKER_MODEL = 'compound-beta-mini';
 export const DEFAULT_CHECKER_MODEL = 'llama-4-maverick-17b-128e-instruct';
 
+type FormStep = 'form' | 'clarifying';
+
 export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
+  const [step, setStep] = useState<FormStep>('form');
   const [topic, setTopic] = useState('');
   const [makerModel, setMakerModel] = useState('');
   const [checkerModel, setCheckerModel] = useState('');
   const [maxTurns, setMaxTurns] = useState(DEFAULT_MAX_TURNS);
   const [unlimitedTurns, setUnlimitedTurns] = useState(false);
   const [verbose, setVerbose] = useState(false);
+  const [allowClarification, setAllowClarification] = useState(false);
   const [topicError, setTopicError] = useState('');
   const [modelOptions, setModelOptions] = useState<{ value: string; label: string }[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
+
+  // Clarification step state
+  const [clarificationQuestion, setClarificationQuestion] = useState('');
+  const [clarificationAnswer, setClarificationAnswer] = useState('');
+  const [clarificationLoading, setClarificationLoading] = useState(false);
+  const [pendingConfig, setPendingConfig] = useState<DebateConfig | null>(null);
 
   useEffect(() => {
     fetchModels()
@@ -65,17 +75,105 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
     return true;
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
-    onSubmit({
+
+    const config: DebateConfig = {
       topic: topic.trim(),
       makerModel,
       checkerModel,
       maxTurns: unlimitedTurns ? 9999 : maxTurns,
       verbose,
-    });
+      allowClarification,
+    };
+
+    if (allowClarification) {
+      setClarificationLoading(true);
+      setPendingConfig(config);
+      try {
+        const question = await fetchClarificationQuestion(config);
+        if (question) {
+          setClarificationQuestion(question);
+          setStep('clarifying');
+          return;
+        }
+      } catch {
+        // If clarification fetch fails, proceed without it
+      } finally {
+        setClarificationLoading(false);
+      }
+    }
+
+    onSubmit(config);
   }
+
+  function handleClarificationSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!pendingConfig) return;
+
+    const answer = clarificationAnswer.trim();
+    const enhancedTopic = answer
+      ? `${pendingConfig.topic}\n\n[User clarification: ${answer}]`
+      : pendingConfig.topic;
+
+    onSubmit({ ...pendingConfig, topic: enhancedTopic });
+  }
+
+  function handleSkipClarification() {
+    if (pendingConfig) onSubmit(pendingConfig);
+  }
+
+  // ── Clarification step ────────────────────────────────────────────────────
+
+  if (step === 'clarifying') {
+    return (
+      <form
+        onSubmit={handleClarificationSubmit}
+        className="w-full max-w-2xl bg-zinc-900 border border-zinc-800 rounded-2xl p-6 flex flex-col gap-6 shadow-2xl shadow-black/50"
+      >
+        <div className="flex flex-col gap-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
+            Pre-debate clarification
+          </p>
+          <p className="text-sm text-zinc-300 leading-relaxed">
+            MAKER asks: <span className="text-zinc-100 italic">"{clarificationQuestion}"</span>
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="clarification" className="text-sm font-medium text-zinc-300">
+            Your answer <span className="text-zinc-500">(optional)</span>
+          </label>
+          <textarea
+            id="clarification"
+            value={clarificationAnswer}
+            onChange={(e) => setClarificationAnswer(e.target.value)}
+            placeholder="Leave blank to proceed without clarification…"
+            rows={3}
+            className="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-3 py-2.5 text-zinc-50 placeholder-zinc-600 focus:outline-none focus:ring-2 focus:border-maker focus:ring-maker/20 transition-colors duration-150 resize-none text-sm"
+          />
+        </div>
+
+        <div className="flex gap-3">
+          <Button type="submit" variant="primary" size="lg" className="flex-1">
+            Start Debate →
+          </Button>
+          <Button
+            type="button"
+            variant="ghost"
+            size="lg"
+            onClick={handleSkipClarification}
+            className="flex-1"
+          >
+            Skip
+          </Button>
+        </div>
+      </form>
+    );
+  }
+
+  // ── Main form step ────────────────────────────────────────────────────────
 
   return (
     <form
@@ -201,6 +299,31 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
           </div>
           <span className="text-sm text-zinc-400">Show thinking</span>
         </label>
+
+        {/* Allow clarification toggle */}
+        <label className="flex items-center gap-3 cursor-pointer select-none pb-0.5 sm:pb-2">
+          <div className="relative">
+            <input
+              type="checkbox"
+              className="sr-only"
+              checked={allowClarification}
+              onChange={(e) => setAllowClarification(e.target.checked)}
+            />
+            <div
+              className={cn(
+                'w-10 h-6 rounded-full transition-colors duration-200',
+                allowClarification ? 'bg-maker' : 'bg-zinc-700',
+              )}
+            />
+            <div
+              className={cn(
+                'absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200',
+                allowClarification ? 'translate-x-4' : 'translate-x-0',
+              )}
+            />
+          </div>
+          <span className="text-sm text-zinc-400">Allow clarification</span>
+        </label>
       </div>
 
       {/* Submit */}
@@ -208,11 +331,11 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
         type="submit"
         variant="primary"
         size="lg"
-        loading={isLoading}
-        disabled={isLoading}
+        loading={isLoading || clarificationLoading}
+        disabled={isLoading || clarificationLoading}
         className="w-full"
       >
-        Start Debate →
+        {clarificationLoading ? 'Checking topic…' : 'Start Debate →'}
       </Button>
     </form>
   );

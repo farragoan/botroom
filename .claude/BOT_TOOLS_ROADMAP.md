@@ -243,21 +243,23 @@ The existing roadmap (from `.claude/PLAN.md` and `literature_review.md`) covers:
 | CLI terminal mode | **Done** |
 | CI/CD with secret scan | **Done** |
 | PWA support | **Done** |
-| Anti-sycophancy system prompts | **Partial** (prompts improved; no structural gate) |
-| Observer/judge agent | **Not started** |
-| Minimum turn enforcement | **Not started** |
+| Anti-sycophancy system prompts | **Done** (ANTI-SYCOPHANCY section in both agent prompts) |
+| Observer/judge agent | **Done** (`lib/observer.ts` — rule-based min-turn veto) |
+| Minimum turn enforcement | **Done** (`minTurnsBeforeConclusion` config field + Observer) |
+| Tool-calling loop scaffold | **Done** (`callLLM()` + tool loop in `agent.ts`) |
+| Web search tool (Tavily) | **Done** (`lib/tools/webSearch.ts` + env `TAVILY_API_KEY`) |
+| User clarification toggle | **Done** (checkbox in TopicForm; `/api/clarify` endpoint; CLI `--allow-clarification`) |
 | Identity-level persona diversity | **Not started** |
 | Agent anonymization in inter-agent messages | **Not started** |
 | N-agent support (4+) | **Not started** |
 | LangGraph / workflow graph integration | **Not started** |
-| Web search tool | **Not started** ← this doc |
-| User clarification (pre-debate phase) | **Not started** ← this doc |
-| Document/URL attachment | **Not started** ← this doc |
+| Document/URL attachment | **Not started** |
 | Session save / resume | **Not started** |
 | Debate history / replay | **Not started** |
 | Dedicated backend (when warranted) | **Not started** |
-| Observer veto gate on CONCLUDE/CONCEDE | **Not started** |
+| Observer LLM-based quality evaluation | **Not started** (current observer is rule-based only) |
 | Scratchpad / per-agent memory tool | **Not started** |
+| Calculator tool | **Not started** |
 
 ### 5.1 Suggested Build Order
 
