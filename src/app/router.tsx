@@ -1,9 +1,9 @@
 // src/app/router.tsx
 import { createBrowserRouter } from 'react-router-dom';
-import { SignIn } from '@clerk/react';
 import Layout from '@/components/layout/Layout';
 import AuthGuard from '@/components/layout/AuthGuard';
 import LandingPage from '@/pages/LandingPage';
+import SignInPage from '@/pages/SignInPage';
 import HomePage from '@/pages/HomePage';
 import DebatePage from '@/pages/DebatePage';
 import HistoryPage from '@/pages/HistoryPage';
@@ -14,11 +14,12 @@ export const router = createBrowserRouter(
   [
     // Landing page — standalone, no app shell
     { path: '/', element: <LandingPage /> },
+    // Sign-in — standalone fullscreen overlay, handles /sign-in/sso-callback sub-routes
+    { path: '/sign-in/*', element: <SignInPage /> },
     // App shell with header/footer
     {
       element: <Layout />,
       children: [
-        { path: '/sign-in', element: <SignIn routing="path" path="/sign-in" /> },
         {
           element: <AuthGuard />,
           children: [
