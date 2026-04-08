@@ -3,9 +3,30 @@
 @tailwind utilities;
 
 @layer base {
-  * { @apply border-slate-800; }
-  body { @apply bg-[#0a0a0f] text-slate-50 font-sans; }
+  * { @apply border-zinc-800; }
+
+  body {
+    @apply bg-[#09090b] text-zinc-50 font-sans antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+  }
+
+  /* Refined scrollbar */
   ::-webkit-scrollbar { @apply w-1.5; }
   ::-webkit-scrollbar-track { @apply bg-transparent; }
-  ::-webkit-scrollbar-thumb { @apply bg-slate-700 rounded-full; }
+  ::-webkit-scrollbar-thumb { @apply bg-zinc-700 rounded-full; }
+  ::-webkit-scrollbar-thumb:hover { @apply bg-zinc-600; }
+
+  /* Smooth focus rings */
+  :focus-visible {
+    @apply outline-none ring-2 ring-maker/60 ring-offset-1 ring-offset-[#09090b];
+  }
+}
+
+@layer utilities {
+  .glass {
+    @apply bg-zinc-900/60 backdrop-blur-md border border-zinc-800/60;
+  }
+  .gradient-text-brand {
+    @apply bg-gradient-to-r from-maker to-checker bg-clip-text text-transparent;
+  }
 }

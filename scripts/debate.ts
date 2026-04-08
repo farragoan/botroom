@@ -5,14 +5,19 @@
  *   GROQ_API_KEY=<key> npx tsx scripts/debate.ts "<topic>" [options]
  *
  * Options:
- *   --json              Emit JSON lines to stdout (one object per event)
- *   --maker-model <id>  Model for MAKER agent  (default: llama-3.3-70b-versatile)
- *   --checker-model <id> Model for CHECKER agent (default: llama-3.3-70b-versatile)
- *   --max-turns <n>     Maximum debate turns    (default: 8)
- *   --verbose           Include agent thinking in output
+ *   --json                  Emit JSON lines to stdout (one object per event)
+ *   --maker-model <id>      Model for MAKER agent  (default: llama-3.3-70b-versatile)
+ *   --checker-model <id>    Model for CHECKER agent (default: llama-3.3-70b-versatile)
+ *   --max-turns <n>         Maximum debate turns    (default: 8)
+ *   --min-turns <n>         Minimum turns before CONCLUDE/CONCEDE allowed (default: 0)
+ *   --allow-clarification   Ask MAKER a clarifying question before Turn 1
+ *   --web-search            Enable Tavily web search (requires TAVILY_API_KEY)
+ *   --verbose               Include agent thinking in output
  */
 
-import { runDebate } from '../netlify/functions/lib/orchestrator.js';
+import * as readline from 'node:readline/promises';
+import { stdin as input, stdout as output } from 'node:process';
+import { runDebate, getClarificationQuestion } from '../netlify/functions/lib/orchestrator.js';
 import type { DebateConfig } from '../netlify/functions/lib/types.js';
 
 // ── Arg parsing ──────────────────────────────────────────────────────────────
@@ -21,6 +26,7 @@ export function parseArgs(argv: string[]): {
   topic: string;
   config: DebateConfig;
   jsonMode: boolean;
+  allowClarification: boolean;
 } {
   const args = argv.slice(2);
 
@@ -29,11 +35,14 @@ export function parseArgs(argv: string[]): {
 Usage: npx tsx scripts/debate.ts "<topic>" [options]
 
 Options:
-  --json                Emit JSON lines instead of human-readable output
-  --maker-model <id>    Model for MAKER agent  (default: llama-3.3-70b-versatile)
-  --checker-model <id>  Model for CHECKER agent (default: llama-3.3-70b-versatile)
-  --max-turns <n>       Maximum debate turns    (default: 8)
-  --verbose             Include agent thinking in output
+  --json                  Emit JSON lines instead of human-readable output
+  --maker-model <id>      Model for MAKER agent  (default: llama-3.3-70b-versatile)
+  --checker-model <id>    Model for CHECKER agent (default: llama-3.3-70b-versatile)
+  --max-turns <n>         Maximum debate turns    (default: 8)
+  --min-turns <n>         Minimum turns before CONCLUDE/CONCEDE is allowed (default: 0)
+  --allow-clarification   Ask MAKER a clarifying question before Turn 1
+  --web-search            Enable Tavily web search (requires TAVILY_API_KEY env var)
+  --verbose               Include agent thinking in output
 
 Example:
   GROQ_API_KEY=gsk_... npx tsx scripts/debate.ts "Thanos was right to kill half of all life in the universe"
@@ -46,7 +55,10 @@ Example:
   let makerModel = 'llama-3.3-70b-versatile';
   let checkerModel = 'llama-3.3-70b-versatile';
   let maxTurns = 8;
+  let minTurns = 0;
   let verbose = false;
+  let allowClarification = false;
+  let enableWebSearch = false;
 
   for (let i = 1; i < args.length; i++) {
     switch (args[i]) {
@@ -55,6 +67,12 @@ Example:
         break;
       case '--verbose':
         verbose = true;
+        break;
+      case '--allow-clarification':
+        allowClarification = true;
+        break;
+      case '--web-search':
+        enableWebSearch = true;
         break;
       case '--maker-model':
         makerModel = args[++i];
@@ -65,13 +83,26 @@ Example:
       case '--max-turns':
         maxTurns = parseInt(args[++i], 10);
         break;
+      case '--min-turns':
+        minTurns = parseInt(args[++i], 10);
+        break;
     }
   }
 
   return {
     topic,
+    allowClarification,
     jsonMode,
-    config: { topic, makerModel, checkerModel, maxTurns, verbose },
+    config: {
+      topic,
+      makerModel,
+      checkerModel,
+      maxTurns,
+      verbose,
+      allowClarification,
+      minTurnsBeforeConclusion: minTurns,
+      enableWebSearch,
+    },
   };
 }
 
@@ -128,7 +159,7 @@ export function printHumanTurn(event: { type: 'turn'; data: TurnData }, verbose:
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 export async function main(argv: string[] = process.argv): Promise<void> {
-  const { topic, config, jsonMode } = parseArgs(argv);
+  const { topic, config, jsonMode, allowClarification } = parseArgs(argv);
 
   const groqApiKey = process.env.GROQ_API_KEY;
   if (!groqApiKey) {
@@ -137,16 +168,65 @@ export async function main(argv: string[] = process.argv): Promise<void> {
   }
 
   const openRouterApiKey = process.env.OPENROUTER_API_KEY;
+  const tavilyApiKey = process.env.TAVILY_API_KEY;
+
+  // Pre-debate clarification phase
+  let effectiveTopic = topic;
+  if (allowClarification) {
+    if (!jsonMode) {
+      process.stdout.write(color('\nChecking whether MAKER needs clarification…\n', DIM));
+    }
+
+    const question = await getClarificationQuestion(config, groqApiKey, openRouterApiKey);
+
+    if (question) {
+      if (jsonMode) {
+        process.stdout.write(
+          JSON.stringify({ type: 'clarification_request', data: { question } }) + '\n',
+        );
+        // In JSON mode, read the answer from stdin
+        const rl = readline.createInterface({ input, output });
+        const answer = await rl.question('');
+        rl.close();
+        if (answer.trim()) {
+          effectiveTopic = `${topic}\n\n[User clarification: ${answer.trim()}]`;
+          process.stdout.write(
+            JSON.stringify({ type: 'clarification_answer', data: { answer: answer.trim() } }) + '\n',
+          );
+        }
+      } else {
+        console.log(color(`\nMAKER asks: `, BOLD) + question);
+        const rl = readline.createInterface({ input, output });
+        const answer = await rl.question(color('Your answer (Enter to skip): ', DIM));
+        rl.close();
+        if (answer.trim()) {
+          effectiveTopic = `${topic}\n\n[User clarification: ${answer.trim()}]`;
+        }
+      }
+    } else if (!jsonMode) {
+      console.log(color('Topic is clear — no clarification needed.\n', DIM));
+    }
+  }
+
+  // Run debate with (potentially enhanced) topic
+  const finalConfig: DebateConfig = { ...config, topic: effectiveTopic };
 
   if (!jsonMode) {
     console.log(color(`\nBotroom Debate`, BOLD));
-    console.log(color(`Topic: ${topic}`, BOLD));
-    console.log(color(`Models: MAKER=${config.makerModel}  CHECKER=${config.checkerModel}  maxTurns=${config.maxTurns}`, DIM));
+    console.log(color(`Topic: ${effectiveTopic}`, BOLD));
+    console.log(
+      color(
+        `Models: MAKER=${config.makerModel}  CHECKER=${config.checkerModel}  maxTurns=${config.maxTurns}` +
+          (config.minTurnsBeforeConclusion ? `  minTurns=${config.minTurnsBeforeConclusion}` : '') +
+          (config.enableWebSearch ? '  webSearch=on' : ''),
+        DIM,
+      ),
+    );
     console.log(color('─'.repeat(60), DIM));
   }
 
   try {
-    for await (const event of runDebate(config, groqApiKey, openRouterApiKey)) {
+    for await (const event of runDebate(finalConfig, groqApiKey, openRouterApiKey, tavilyApiKey)) {
       if (jsonMode) {
         process.stdout.write(JSON.stringify(event) + '\n');
         continue;

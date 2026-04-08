@@ -12,6 +12,51 @@ interface ModelInfo {
   provider: 'groq' | 'openrouter';
 }
 
+/** Friendly display names for known Groq models */
+export const GROQ_DISPLAY_NAMES: Record<string, string> = {
+  'compound-beta-mini': 'Compound Mini',
+  'compound-beta': 'Compound Beta',
+  'llama-4-maverick-17b-128e-instruct': 'LLaMA 4 Maverick (GPT OSS)',
+  'llama-4-scout-17b-16e-instruct': 'LLaMA 4 Scout',
+  'llama-3.3-70b-versatile': 'LLaMA 3.3 70B',
+  'llama-3.1-8b-instant': 'LLaMA 3.1 8B (Fast)',
+  'deepseek-r1-distill-llama-70b': 'DeepSeek R1 70B',
+  'qwen-qwq-32b': 'Qwen QWQ 32B',
+  'gemma2-9b-it': 'Gemma 2 9B',
+  'mistral-saba-24b': 'Mistral Saba 24B',
+  'llama3-70b-8192': 'LLaMA 3 70B',
+  'llama3-8b-8192': 'LLaMA 3 8B',
+  'mixtral-8x7b-32768': 'Mixtral 8x7B',
+};
+
+/**
+ * Preferred ordering — models listed here appear first in the UI.
+ * compound-beta-mini → default MAKER, llama-4-maverick → default CHECKER.
+ */
+export const PREFERRED_ORDER = [
+  'compound-beta-mini',
+  'llama-4-maverick-17b-128e-instruct',
+  'llama-4-scout-17b-16e-instruct',
+  'llama-3.3-70b-versatile',
+  'compound-beta',
+  'deepseek-r1-distill-llama-70b',
+  'qwen-qwq-32b',
+  'gemma2-9b-it',
+  'mistral-saba-24b',
+  'llama-3.1-8b-instant',
+];
+
+export function sortGroqModels(models: ModelInfo[]): ModelInfo[] {
+  return [...models].sort((a, b) => {
+    const ai = PREFERRED_ORDER.indexOf(a.id);
+    const bi = PREFERRED_ORDER.indexOf(b.id);
+    if (ai !== -1 && bi !== -1) return ai - bi;
+    if (ai !== -1) return -1;
+    if (bi !== -1) return 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 async function fetchGroqModels(apiKey: string): Promise<ModelInfo[]> {
   const res = await fetch('https://api.groq.com/openai/v1/models', {
     headers: { Authorization: `Bearer ${apiKey}` },
@@ -22,12 +67,12 @@ async function fetchGroqModels(apiKey: string): Promise<ModelInfo[]> {
     return [];
   }
   const data = (await res.json()) as { data?: Array<{ id: string }> };
-  console.log('[models] Groq response:', JSON.stringify(data));
-  return (data.data ?? []).map((m) => ({
+  const models: ModelInfo[] = (data.data ?? []).map((m) => ({
     id: m.id,
-    name: m.id,
+    name: GROQ_DISPLAY_NAMES[m.id] ?? m.id,
     provider: 'groq',
   }));
+  return sortGroqModels(models);
 }
 
 async function fetchOpenRouterFreeModels(): Promise<ModelInfo[]> {
@@ -60,9 +105,6 @@ export default async (req: Request): Promise<Response> => {
   const groqApiKey = process.env.GROQ_API_KEY ?? '';
   const enableOpenRouter = process.env.ENABLE_OPENROUTER === 'true';
   const enableGroq = process.env.ENABLE_GROQ !== 'false';
-  console.log("enable groq:", enableGroq);
-  console.log("enable openrouter:", enableOpenRouter)
-
 
   const [groqModels, openRouterModels] = await Promise.allSettled([
     enableGroq ? fetchGroqModels(groqApiKey) : Promise.resolve([] as ModelInfo[]),

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { TopicForm } from '@/features/home/components/TopicForm';
+import { TopicForm, DEFAULT_MAKER_MODEL, DEFAULT_CHECKER_MODEL } from '@/features/home/components/TopicForm';
 import type { DebateConfig } from '@/types/debate';
 import { DEFAULT_MAX_TURNS } from '@/lib/constants';
 
@@ -121,6 +121,63 @@ describe('TopicForm', () => {
     });
   });
 
+  it('exports DEFAULT_MAKER_MODEL as compound-beta-mini', () => {
+    expect(DEFAULT_MAKER_MODEL).toBe('compound-beta-mini');
+  });
+
+  it('exports DEFAULT_CHECKER_MODEL as llama-4-maverick', () => {
+    expect(DEFAULT_CHECKER_MODEL).toBe('llama-4-maverick-17b-128e-instruct');
+  });
+
+  it('falls back to first model when preferred MAKER is absent', async () => {
+    // Mock doesn't include compound-beta-mini → should pick options[0]
+    render(<TopicForm onSubmit={mockSubmit} />);
+    await waitFor(() => {
+      const sel = screen.getByLabelText(/MAKER Model/i) as HTMLSelectElement;
+      expect(sel.value).toBe('llama-3.3-70b-versatile');
+    });
+  });
+
+  it('falls back to second model when preferred CHECKER is absent', async () => {
+    render(<TopicForm onSubmit={mockSubmit} />);
+    await waitFor(() => {
+      const sel = screen.getByLabelText(/CHECKER Model/i) as HTMLSelectElement;
+      expect(sel.value).toBe('llama-3.1-8b-instant');
+    });
+  });
+
+  it('selects compound-beta-mini as MAKER when available', async () => {
+    const { fetchModels } = await import('@/lib/api');
+    vi.mocked(fetchModels).mockResolvedValueOnce({
+      groq: [
+        { id: 'compound-beta-mini', name: 'Compound Mini', provider: 'groq' },
+        { id: 'llama-4-maverick-17b-128e-instruct', name: 'LLaMA 4 Maverick (GPT OSS)', provider: 'groq' },
+      ],
+      openrouter: [],
+    });
+    render(<TopicForm onSubmit={mockSubmit} />);
+    await waitFor(() => {
+      const sel = screen.getByLabelText(/MAKER Model/i) as HTMLSelectElement;
+      expect(sel.value).toBe('compound-beta-mini');
+    });
+  });
+
+  it('selects llama-4-maverick as CHECKER when available', async () => {
+    const { fetchModels } = await import('@/lib/api');
+    vi.mocked(fetchModels).mockResolvedValueOnce({
+      groq: [
+        { id: 'compound-beta-mini', name: 'Compound Mini', provider: 'groq' },
+        { id: 'llama-4-maverick-17b-128e-instruct', name: 'LLaMA 4 Maverick (GPT OSS)', provider: 'groq' },
+      ],
+      openrouter: [],
+    });
+    render(<TopicForm onSubmit={mockSubmit} />);
+    await waitFor(() => {
+      const sel = screen.getByLabelText(/CHECKER Model/i) as HTMLSelectElement;
+      expect(sel.value).toBe('llama-4-maverick-17b-128e-instruct');
+    });
+  });
+
   it('toggles verbose checkbox', async () => {
     render(<TopicForm onSubmit={mockSubmit} />);
     const textarea = screen.getByPlaceholderText(/Should AI be regulated/i);
@@ -128,7 +185,7 @@ describe('TopicForm', () => {
 
     const checkboxes = screen.getAllByRole('checkbox');
     const verboseCheckbox = checkboxes.find((cb) =>
-      cb.closest('label')?.textContent?.includes('verbose')
+      cb.closest('label')?.textContent?.toLowerCase().includes('thinking')
     )!;
     expect(verboseCheckbox).not.toBeChecked();
     await userEvent.click(verboseCheckbox);

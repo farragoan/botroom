@@ -1,11 +1,12 @@
 import { useRef } from 'react';
+import { useAuth } from '@clerk/react';
 import { useDebateStore } from '@/features/debate/store/debateStore';
 import { streamDebate } from '@/lib/api';
 import type { DebateConfig, Turn } from '@/types/debate';
 
 interface SynthesisEventData {
   synthesis: string;
-  concluded_naturally: boolean;
+  concludedNaturally: boolean;
 }
 
 function isSynthesisData(data: unknown): data is SynthesisEventData {
@@ -39,13 +40,14 @@ function isErrorData(data: unknown): data is { message: string } {
 export function useDebate() {
   const store = useDebateStore();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const { getToken } = useAuth();
 
   async function startDebate(config: DebateConfig): Promise<void> {
     store.reset();
     store.setConfig(config);
     store.setStatus('running');
 
-    if (Notification.permission === 'default') {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission();
     }
 
@@ -53,7 +55,9 @@ export function useDebate() {
     abortControllerRef.current = controller;
 
     try {
-      const generator = streamDebate(config, controller.signal);
+      const token = await getToken();
+      if (!token) throw new Error('Not authenticated');
+      const generator = streamDebate(config, token, controller.signal);
 
       for await (const event of generator) {
         if (event.type === 'turn') {
@@ -64,7 +68,7 @@ export function useDebate() {
           if (isSynthesisData(event.data)) {
             store.setSynthesis(event.data.synthesis);
             store.setConcludedNaturally(
-              Boolean(event.data.concluded_naturally)
+              Boolean(event.data.concludedNaturally)
             );
           }
         } else if (event.type === 'error') {
@@ -78,10 +82,20 @@ export function useDebate() {
       }
 
       store.setStatus('complete');
-      if (Notification.permission === 'granted') {
-        new Notification('Debate complete', {
-          body: `The debate has concluded after ${store.turns.length} turns.`,
-        });
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+        const body = `The debate has concluded after ${store.turns.length} turns.`;
+        try {
+          // In a PWA/SW context new Notification() is illegal — use SW registration instead
+          if (navigator.serviceWorker?.controller) {
+            navigator.serviceWorker.ready.then((reg) =>
+              reg.showNotification('Debate complete', { body }),
+            );
+          } else {
+            new Notification('Debate complete', { body });
+          }
+        } catch {
+          // Notifications not supported in this context — not critical
+        }
       }
     } catch (err: unknown) {
       // Ignore AbortError — user-initiated cancel
