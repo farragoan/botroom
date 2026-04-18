@@ -13,6 +13,7 @@ vi.mock('@/lib/api', () => ({
     ],
     openrouter: [],
   }),
+  fetchClarificationQuestion: vi.fn().mockResolvedValue(null),
   streamDebate: vi.fn(),
 }));
 

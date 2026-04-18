@@ -339,9 +339,9 @@ export default function LandingPage() {
               variants={fadeUp}
               className="flex items-center gap-6 pt-4 text-xs text-zinc-600"
             >
-              <span>✓ Free to use</span>
-              <span>✓ No login required</span>
+              <span>✓ Free to try</span>
               <span>✓ Real-time streaming</span>
+              <span>✓ Multi-model support</span>
             </motion.div>
           </motion.div>
 
@@ -555,7 +555,7 @@ export default function LandingPage() {
             <motion.div variants={fadeUp}>
               <span className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1 text-xs font-medium text-zinc-400">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Live now · No signup required
+                Live now · Powered by Groq
               </span>
             </motion.div>
 

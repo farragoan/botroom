@@ -23,6 +23,7 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
   const [unlimitedTurns, setUnlimitedTurns] = useState(false);
   const [verbose, setVerbose] = useState(false);
   const [topicError, setTopicError] = useState('');
+  const [modelError, setModelError] = useState('');
   const [modelOptions, setModelOptions] = useState<{ value: string; label: string }[]>([]);
   const [modelsLoading, setModelsLoading] = useState(true);
 
@@ -53,16 +54,27 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
   }, []);
 
   function validate(): boolean {
+    let ok = true;
+
     if (!topic.trim()) {
       setTopicError('Topic is required.');
-      return false;
-    }
-    if (topic.trim().length < 10) {
+      ok = false;
+    } else if (topic.trim().length < 10) {
       setTopicError('Topic must be at least 10 characters.');
-      return false;
+      ok = false;
+    } else {
+      setTopicError('');
     }
-    setTopicError('');
-    return true;
+
+    // Only check model selection once the API response has arrived
+    if (!modelsLoading && (!makerModel || !checkerModel)) {
+      setModelError('Models failed to load — please refresh the page.');
+      ok = false;
+    } else {
+      setModelError('');
+    }
+
+    return ok;
   }
 
   function handleSubmit(e: React.FormEvent) {
@@ -130,6 +142,12 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
           disabled={modelsLoading}
         />
       </div>
+
+      {modelError && (
+        <p className="text-xs text-red-400 -mt-3" role="alert">
+          {modelError}
+        </p>
+      )}
 
       {/* Max turns + toggles row */}
       <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-end">
