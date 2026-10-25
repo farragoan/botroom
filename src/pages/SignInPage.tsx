@@ -1,5 +1,6 @@
 import { SignIn } from '@clerk/react';
 import { Link } from 'react-router-dom';
+import { BASE } from '@/lib/constants';
 
 export default function SignInPage() {
   return (
@@ -13,7 +14,7 @@ export default function SignInPage() {
       </Link>
 
       {/* Clerk sign-in widget */}
-      <SignIn routing="path" path="/sign-in" fallbackRedirectUrl="/arena" />
+      <SignIn routing="path" path={`${BASE}/sign-in`} fallbackRedirectUrl={`${BASE}/arena`} />
 
       {/* Back link */}
       <Link

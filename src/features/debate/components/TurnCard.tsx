@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { motion } from 'framer-motion';
+import { AGENT_LABEL } from '@/lib/constants';
 import { Badge } from '@/components/ui/Badge';
 import { cn } from '@/lib/utils';
 import type { Turn } from '@/types/debate';
@@ -12,22 +12,6 @@ interface TurnCardProps {
 /** Messages longer than this get collapsed to 3 lines with a Read more button. */
 export const READ_MORE_THRESHOLD = 280;
 
-const cardVariants = {
-  hidden: (agent: string) => ({
-    opacity: 0,
-    x: agent === 'MAKER' ? -24 : 24,
-  }),
-  visible: {
-    opacity: 1,
-    x: 0,
-    transition: {
-      type: 'spring' as const,
-      stiffness: 260,
-      damping: 28,
-    },
-  },
-};
-
 export function TurnCard({ turn, verbose = false }: TurnCardProps) {
   const [thinkingOpen, setThinkingOpen] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -36,12 +20,9 @@ export function TurnCard({ turn, verbose = false }: TurnCardProps) {
   const isLong = response.message.length > READ_MORE_THRESHOLD;
 
   return (
-    <motion.div
-      custom={agent}
-      variants={cardVariants}
-      initial="hidden"
-      animate="visible"
+    <div
       className={cn(
+        isMaker ? 'animate-slide-in-left' : 'animate-slide-in-right',
         'rounded-xl border bg-zinc-900 border-zinc-800 border-l-[3px] overflow-hidden shadow-card',
         isMaker ? 'border-l-maker' : 'border-l-checker',
       )}
@@ -54,7 +35,7 @@ export function TurnCard({ turn, verbose = false }: TurnCardProps) {
             isMaker ? 'text-maker' : 'text-checker',
           )}
         >
-          {agent}
+          {AGENT_LABEL[agent]}
         </span>
         <Badge action={response.action} />
         <span className="ml-auto text-xs text-zinc-600 tabular-nums font-mono">
@@ -131,6 +112,6 @@ export function TurnCard({ turn, verbose = false }: TurnCardProps) {
           )}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }

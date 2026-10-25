@@ -1,3 +1,4 @@
+import { AGENT_LABEL } from '@/lib/constants';
 import { Spinner } from '@/components/ui/Spinner';
 import { cn } from '@/lib/utils';
 import type { AgentRole } from '@/types/debate';
@@ -44,7 +45,7 @@ export function AgentPanel({ role, modelName, isActive }: AgentPanelProps) {
             isMaker ? 'text-maker' : 'text-checker',
           )}
         >
-          {role}
+          {AGENT_LABEL[role]}
         </span>
       </div>
 

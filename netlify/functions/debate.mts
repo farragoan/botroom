@@ -3,7 +3,6 @@ import { runDebate } from './lib/orchestrator.js';
 import type { DebateConfig } from './lib/types.js';
 import { requireAuth, AuthError } from './lib/auth.js';
 import { getDb } from './lib/db.js';
-import { calculateCostPaise, OVERDRAFT_LIMIT_PAISE } from './lib/pricing.js';
 import { v4 as uuidv4 } from 'uuid';
 
 const CORS_HEADERS = {
@@ -22,6 +21,10 @@ const SSE_HEADERS = {
 function sseMessage(event: string, data: unknown): string {
   return `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
 }
+
+// Billing is permanently off in this build (Razorpay removed). Kept as an explicit flag so
+// nothing downstream accidentally re-enables metering.
+const BILLING_ENABLED = false as boolean;
 
 export default async (req: Request): Promise<Response> => {
   if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS_HEADERS });
@@ -59,7 +62,6 @@ export default async (req: Request): Promise<Response> => {
     verbose?: boolean;
     allowClarification?: boolean;
     minTurnsBeforeConclusion?: number;
-    enableWebSearch?: boolean;
   };
 
   try {
@@ -78,7 +80,6 @@ export default async (req: Request): Promise<Response> => {
     verbose = false,
     allowClarification = false,
     minTurnsBeforeConclusion,
-    enableWebSearch = false,
   } = body;
 
   if (!topic?.trim()) {
@@ -88,28 +89,16 @@ export default async (req: Request): Promise<Response> => {
   }
 
   const db = getDb();
+  if (BILLING_ENABLED) throw new Error('Billing is not supported in this build');
 
-  // Upsert user (in case /api/me was never called)
+  // Ensure the user row exists (debates.user_id references users.id)
   await db.execute({
-    sql: `INSERT INTO users (id, email, wallet_balance_paise) VALUES (?, '', 50000) ON CONFLICT(id) DO NOTHING`,
+    sql: `INSERT INTO users (id, email) VALUES (?, '') ON CONFLICT(id) DO NOTHING`,
     args: [userId],
   });
-
-  // Check overdraft limit
-  const userRow = await db.execute({
-    sql: 'SELECT wallet_balance_paise FROM users WHERE id = ?',
-    args: [userId],
-  });
-  const balance = Number(userRow.rows[0]?.wallet_balance_paise ?? 0);
-  if (balance <= OVERDRAFT_LIMIT_PAISE) {
-    return new Response(JSON.stringify({ error: 'Insufficient balance. Please top up your wallet.' }), {
-      status: 402, headers: { ...CORS_HEADERS, 'Content-Type': 'application/json' },
-    });
-  }
 
   const enableOpenRouter = process.env.ENABLE_OPENROUTER === 'true';
   const openRouterApiKey = enableOpenRouter ? process.env.OPENROUTER_API_KEY : undefined;
-  const tavilyApiKey = process.env.TAVILY_API_KEY;
 
   const config: DebateConfig = {
     topic: topic.trim(),
@@ -121,7 +110,6 @@ export default async (req: Request): Promise<Response> => {
     minTurnsBeforeConclusion: minTurnsBeforeConclusion !== undefined
       ? Math.max(0, Number(minTurnsBeforeConclusion) || 0)
       : undefined,
-    enableWebSearch: Boolean(enableWebSearch),
   };
 
   // Create debate row
@@ -137,53 +125,29 @@ export default async (req: Request): Promise<Response> => {
       const enqueue = (chunk: string) => controller.enqueue(encoder.encode(chunk));
 
       let totalTokens = 0;
-      let totalCostPaise = 0;
 
       try {
-        for await (const event of runDebate(config, groqApiKey, openRouterApiKey, tavilyApiKey)) {
+        for await (const event of runDebate(config, groqApiKey, openRouterApiKey)) {
           if (event.type === 'turn') {
             enqueue(sseMessage('turn', event.data));
 
             const turn = event.data;
             const usage = turn.tokenUsage ?? { promptTokens: 0, completionTokens: 0 };
-            const modelId = turn.agent === 'MAKER' ? config.makerModel : config.checkerModel;
-            const costPaise = calculateCostPaise(modelId, usage.promptTokens, usage.completionTokens);
             const turnId = uuidv4();
 
             await db.execute({
-              sql: `INSERT INTO turns (id, debate_id, turn_number, agent, content, prompt_tokens, completion_tokens, cost_paise) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-              args: [turnId, debateId, turn.turnNumber, turn.agent, JSON.stringify(turn.response), usage.promptTokens, usage.completionTokens, costPaise],
-            });
-
-            // Atomic deduction
-            const deductResult = await db.execute({
-              sql: `UPDATE users SET wallet_balance_paise = wallet_balance_paise - ? WHERE id = ? RETURNING wallet_balance_paise`,
-              args: [costPaise, userId],
-            });
-            const balanceAfter = Number(deductResult.rows[0]?.wallet_balance_paise ?? 0);
-
-            await db.execute({
-              sql: `INSERT INTO usage_events (id, user_id, debate_id, turn_id, tokens_used, cost_paise, balance_after_paise) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-              args: [uuidv4(), userId, debateId, turnId, usage.promptTokens + usage.completionTokens, costPaise, balanceAfter],
+              sql: `INSERT INTO turns (id, debate_id, turn_number, agent, content, prompt_tokens, completion_tokens, cost_paise) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+              args: [turnId, debateId, turn.turnNumber, turn.agent, JSON.stringify(turn.response), usage.promptTokens, usage.completionTokens],
             });
 
             totalTokens += usage.promptTokens + usage.completionTokens;
-            totalCostPaise += costPaise;
-
-            // Stop the stream if overdraft limit exceeded
-            if (balanceAfter <= OVERDRAFT_LIMIT_PAISE) {
-              enqueue(sseMessage('error', { message: 'Wallet balance exhausted. Please top up to continue.' }));
-              enqueue(sseMessage('done', { debateId }));
-              await db.execute({ sql: `UPDATE debates SET status='failed' WHERE id=?`, args: [debateId] });
-              return; // exits the ReadableStream start() function, closing the stream
-            }
 
           } else if (event.type === 'synthesis') {
             enqueue(sseMessage('synthesis', event.data));
 
             await db.execute({
-              sql: `UPDATE debates SET status='completed', synthesis=?, concluded_naturally=?, total_tokens=?, total_cost_paise=? WHERE id=?`,
-              args: [event.data.synthesis, event.data.concludedNaturally ? 1 : 0, totalTokens, totalCostPaise, debateId],
+              sql: `UPDATE debates SET status='completed', synthesis=?, concluded_naturally=?, total_tokens=?, total_cost_paise=0 WHERE id=?`,
+              args: [event.data.synthesis, event.data.concludedNaturally ? 1 : 0, totalTokens, debateId],
             });
 
           } else if (event.type === 'error') {

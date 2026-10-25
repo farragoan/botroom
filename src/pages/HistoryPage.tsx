@@ -10,7 +10,6 @@ interface DebateSummary {
   maker_model: string;
   checker_model: string;
   status: string;
-  total_cost_paise: number;
   created_at: string;
 }
 
@@ -34,16 +33,16 @@ export default function HistoryPage() {
 
   return (
     <div className="max-w-3xl mx-auto p-8">
-      <h1 className="text-2xl font-bold text-white mb-6">Debate History</h1>
+      <h1 className="text-2xl font-bold text-white mb-6">Case History</h1>
       {debates.length === 0 && (
-        <p className="text-zinc-400">No debates yet. <Link to="/" className="text-indigo-400 hover:underline">Start one.</Link></p>
+        <p className="text-zinc-400">No cases yet. <Link to="/" className="text-indigo-400 hover:underline">Start one.</Link></p>
       )}
       <ul className="space-y-3">
         {debates.map(d => (
           <li key={d.id} className="bg-zinc-800 rounded-lg p-4">
             <p className="text-white font-medium truncate">{d.topic}</p>
             <p className="text-zinc-400 text-sm mt-1">
-              {d.maker_model} vs {d.checker_model} · ₹{(d.total_cost_paise / 100).toFixed(2)} · {new Date(d.created_at).toLocaleDateString()}
+              {d.maker_model} + {d.checker_model} · {new Date(d.created_at).toLocaleDateString()}
             </p>
           </li>
         ))}

@@ -56,7 +56,7 @@ export function DebateArena() {
           {config?.topic && (
             <div className="flex-1 min-w-0">
               <p className="text-xs text-zinc-500 truncate">
-                <span className="uppercase tracking-wider text-zinc-600 mr-1.5">Topic</span>
+                <span className="uppercase tracking-wider text-zinc-600 mr-1.5">Case</span>
                 {config.topic}
               </p>
             </div>
@@ -97,7 +97,7 @@ export function DebateArena() {
         {isRunning && turns.length === 0 && (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
             <Spinner size="lg" className="text-maker" />
-            <p className="text-zinc-500 text-sm">Starting debate…</p>
+            <p className="text-zinc-500 text-sm">Starting case session…</p>
           </div>
         )}
 

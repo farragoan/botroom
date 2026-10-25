@@ -392,7 +392,6 @@ describe('main', () => {
       expect.any(Object),
       'groq-key',
       'or-key',
-      undefined,
     );
   });
 });

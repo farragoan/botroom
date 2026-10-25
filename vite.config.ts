@@ -30,8 +30,23 @@ function buildVersion(): string {
 
 const appVersion = buildVersion();
 
+// Sub-path deploy (https://dhruvnagpal.in/botroom). Same env name as the khlaas app.
+// Normalised to "/botroom/" (leading + trailing slash) or "/" when unset.
+const rawBase = (process.env.NEXT_PUBLIC_BASE_PATH ?? '').trim().replace(/^\/+|\/+$/g, '');
+const basePath = rawBase ? `/${rawBase}/` : '/';
+
 export default defineConfig({
-  base: '/',
+  base: basePath,
+  build: {
+    target: 'es2020',
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          react: ['react', 'react-dom', 'react-router-dom'],
+        },
+      },
+    },
+  },
   define: {
     __APP_VERSION__: JSON.stringify(appVersion),
   },
@@ -50,17 +65,17 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.svg', 'robots.txt'],
       manifest: {
-        name: 'Botroom – AI Debate Arena',
+        name: 'Botroom – AI Case Solver',
         short_name: 'Botroom',
-        description: 'Watch two AI models debate any topic to consensus',
+        description: 'Work through a business case with an AI analyst and reviewer',
         theme_color: '#09090b',
         background_color: '#09090b',
         display: 'standalone',
-        start_url: '/',
-        scope: '/',
+        start_url: basePath,
+        scope: basePath,
         icons: [
           {
-            src: '/icon.svg',
+            src: `${basePath}icon.svg`,
             sizes: 'any',
             type: 'image/svg+xml',
             purpose: 'any maskable',
@@ -69,17 +84,7 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg,woff2}'],
-        runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: {
-              cacheName: 'google-fonts-cache',
-              expiration: { maxEntries: 10, maxAgeSeconds: 60 * 60 * 24 * 365 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
+        navigateFallbackDenylist: [/\/api\//],
       },
     }),
   ],

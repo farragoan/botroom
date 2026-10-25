@@ -168,7 +168,7 @@ describe('Agent', () => {
 
     const body = JSON.parse((mockFetch.mock.calls[0] as [string, RequestInit & { body: string }])[1].body);
     expect(body.messages[0].role).toBe('system');
-    expect(body.messages[0].content).toContain('You are MAKER');
+    expect(body.messages[0].content).toContain('You are the ANALYST');
     expect(body.messages[0].content).not.toContain('You are CHECKER');
   });
 
@@ -181,8 +181,10 @@ describe('Agent', () => {
 
     const body = JSON.parse((mockFetch.mock.calls[0] as [string, RequestInit & { body: string }])[1].body);
     expect(body.messages[0].role).toBe('system');
-    expect(body.messages[0].content).toContain('CHECKER');
-    expect(body.messages[0].content).not.toContain('You are MAKER');
+    expect(body.messages[0].content).toContain('You are the REVIEWER');
+    expect(body.messages[0].content).toContain('test topic');
+    expect(body.messages[0].content).not.toMatch(/tavily|web_search/i);
+    expect(body.messages[0].content).not.toContain('You are the ANALYST');
   });
 
   it('returns parsed AgentResponse', async () => {

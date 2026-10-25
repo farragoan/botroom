@@ -71,14 +71,14 @@ describe('TurnCard', () => {
   // ── Rendering ────────────────────────────────────────────────
   it('renders MAKER turn with maker color class', () => {
     const { container } = render(<TurnCard turn={makerTurn} />);
-    expect(screen.getByText('MAKER')).toBeInTheDocument();
+    expect(screen.getByText('Analyst')).toBeInTheDocument();
     const card = container.firstChild as HTMLElement;
     expect(card.className).toMatch(/border-l-maker/);
   });
 
   it('renders CHECKER turn with checker color class', () => {
     const { container } = render(<TurnCard turn={checkerTurn} />);
-    expect(screen.getByText('CHECKER')).toBeInTheDocument();
+    expect(screen.getByText('Reviewer')).toBeInTheDocument();
     const card = container.firstChild as HTMLElement;
     expect(card.className).toMatch(/border-l-checker/);
   });

@@ -64,11 +64,11 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
 
   function validate(): boolean {
     if (!topic.trim()) {
-      setTopicError('Topic is required.');
+      setTopicError('Case brief is required.');
       return false;
     }
     if (topic.trim().length < 10) {
-      setTopicError('Topic must be at least 10 characters.');
+      setTopicError('Case brief must be at least 10 characters.');
       return false;
     }
     setTopicError('');
@@ -134,10 +134,10 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
       >
         <div className="flex flex-col gap-2">
           <p className="text-xs font-semibold uppercase tracking-widest text-zinc-500">
-            Pre-debate clarification
+            Before we start
           </p>
           <p className="text-sm text-zinc-300 leading-relaxed">
-            MAKER asks: <span className="text-zinc-100 italic">"{clarificationQuestion}"</span>
+            Analyst asks: <span className="text-zinc-100 italic">"{clarificationQuestion}"</span>
           </p>
         </div>
 
@@ -157,7 +157,7 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
 
         <div className="flex gap-3">
           <Button type="submit" variant="primary" size="lg" className="flex-1">
-            Start Debate →
+            Solve case →
           </Button>
           <Button
             type="button"
@@ -184,7 +184,7 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
       {/* Topic */}
       <div className="flex flex-col gap-1.5">
         <label htmlFor="topic" className="text-sm font-medium text-zinc-300">
-          Debate Topic <span className="text-red-400">*</span>
+          Case brief <span className="text-red-400">*</span>
         </label>
         <textarea
           id="topic"
@@ -193,7 +193,7 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
             setTopic(e.target.value);
             if (topicError) setTopicError('');
           }}
-          placeholder="Should AI be regulated by governments?"
+          placeholder="Paste your case: the situation, the question, and the key numbers. Use only material you have the right to use."
           rows={3}
           required
           className={cn(
@@ -214,14 +214,14 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
       {/* Model selects */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <Select
-          label="MAKER Model"
+          label="Analyst Model"
           options={modelsLoading ? [{ value: '', label: 'Loading models…' }] : modelOptions}
           value={makerModel}
           onChange={(e) => setMakerModel(e.target.value)}
           disabled={modelsLoading}
         />
         <Select
-          label="CHECKER Model"
+          label="Reviewer Model"
           options={modelsLoading ? [{ value: '', label: 'Loading models…' }] : modelOptions}
           value={checkerModel}
           onChange={(e) => setCheckerModel(e.target.value)}
@@ -335,7 +335,7 @@ export function TopicForm({ onSubmit, isLoading = false }: TopicFormProps) {
         disabled={isLoading || clarificationLoading}
         className="w-full"
       >
-        {clarificationLoading ? 'Checking topic…' : 'Start Debate →'}
+        {clarificationLoading ? 'Checking case…' : 'Solve case →'}
       </Button>
     </form>
   );

@@ -34,7 +34,7 @@ async function generateSynthesis(
     )
     .join('\n\n');
 
-  const prompt = `You are a neutral analyst. Summarize the following AI debate transcript, highlighting the key arguments made by both sides, any points of agreement or concession, and an overall synthesis of the discussion.\n\nDebate transcript:\n${transcript}\n\nProvide a concise, balanced synthesis in 2-4 paragraphs.`;
+  const prompt = `You are a case-interview coach. Below is a working session in which an ANALYST and a REVIEWER worked through a business case. Write the final write-up: (1) problem statement, (2) key analysis, (3) recommendation, (4) risks and next steps. Keep assumptions labelled as assumptions.\n\nSession transcript:\n${transcript}\n\nBe concise (under 350 words).`;
 
   const apis: Array<{ url: string; key: string; model: string }> = [
     {
@@ -104,7 +104,7 @@ export async function getClarificationQuestion(
   const cfg = resolveAgentConfig(config.makerModel, groqApiKey, openRouterApiKey);
 
   const prompt =
-    `You will soon debate the following topic as MAKER (proposing and defending a position):\n\n` +
+    `You will soon work through the following business case as the ANALYST:\n\n` +
     `"${config.topic}"\n\n` +
     `Before the debate begins, do you need any clarification from the user to stake a precise, ` +
     `well-scoped position?\n\n` +
@@ -158,7 +158,6 @@ export async function* runDebate(
   config: DebateConfig,
   groqApiKey: string,
   openRouterApiKey?: string,
-  tavilyApiKey?: string,
 ): AsyncGenerator<DebateEvent> {
   const turns: Turn[] = [];
 
@@ -183,9 +182,6 @@ export async function* runDebate(
     };
   }
 
-  // Resolve web-search capability
-  const effectiveTavilyKey = config.enableWebSearch ? (tavilyApiKey ?? process.env.TAVILY_API_KEY) : undefined;
-
   try {
     const makerCfg = resolveAgentConfig(config.makerModel, groqApiKey, openRouterApiKey);
     const checkerCfg = resolveAgentConfig(config.checkerModel, groqApiKey, openRouterApiKey);
@@ -196,7 +192,6 @@ export async function* runDebate(
       makerCfg.apiKey,
       makerCfg.baseUrl,
       config.topic,
-      effectiveTavilyKey,
     );
     const checker = new Agent(
       'CHECKER',
@@ -204,7 +199,6 @@ export async function* runDebate(
       checkerCfg.apiKey,
       checkerCfg.baseUrl,
       config.topic,
-      effectiveTavilyKey,
     );
 
     let turnNumber = 0;
@@ -214,7 +208,7 @@ export async function* runDebate(
 
     // Turn 1: MAKER opens
     turnNumber++;
-    const makerOpeningMessage = `Begin your opening position on: ${config.topic}`;
+    const makerOpeningMessage = `Open with your problem framing and a first recommendation for this case:\n\n${config.topic}`;
     let makerResponse: AgentResponse;
     let makerUsage: TokenUsage;
 

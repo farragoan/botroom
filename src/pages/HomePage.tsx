@@ -18,11 +18,14 @@ export default function HomePage() {
     <div className="flex flex-col items-center px-4 py-12 min-h-[calc(100vh-56px)]">
       {/* Hero */}
       <div className="text-center mb-12 max-w-2xl">
-        <h1 className="text-6xl sm:text-7xl font-black tracking-tighter bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-cyan-400 bg-clip-text text-transparent mb-4 select-none">
-          BOTROOM
+        <h1 className="text-5xl sm:text-6xl font-bold tracking-tight gradient-text-brand mb-3 select-none">
+          Botroom
         </h1>
-        <p className="text-lg sm:text-xl text-slate-400 font-light tracking-wide">
-          Two AI minds.&nbsp;&nbsp;One topic.&nbsp;&nbsp;Fight to consensus.
+        <p className="text-base sm:text-lg text-zinc-400">
+          An analyst and a reviewer work through your business case, then hand you a write-up.
+        </p>
+        <p className="mt-2 text-xs text-zinc-600">
+          Bring your own case text. Botroom ships with no casebook content.
         </p>
       </div>
 

@@ -29,8 +29,6 @@ export interface DebateConfig {
    * Default undefined (disabled). Recommended: 6.
    */
   minTurnsBeforeConclusion?: number;
-  /** When true, agents may call the Tavily web-search tool (requires TAVILY_API_KEY on server). */
-  enableWebSearch?: boolean;
 }
 
 export type DebateStatus = 'idle' | 'running' | 'complete' | 'error';

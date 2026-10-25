@@ -35,18 +35,4 @@ export interface DebateConfig {
    * Default 0 (disabled). Recommended: 6.
    */
   minTurnsBeforeConclusion?: number;
-  /** When true, agents may call the Tavily web-search tool (requires TAVILY_API_KEY env). */
-  enableWebSearch?: boolean;
-}
-
-/** A tool-use request emitted by an agent mid-turn. Never surfaces to the orchestrator. */
-export interface ToolUseRequest {
-  tool: 'web_search';
-  query: string;
-}
-
-export interface SearchResult {
-  title: string;
-  url: string;
-  content: string;
 }

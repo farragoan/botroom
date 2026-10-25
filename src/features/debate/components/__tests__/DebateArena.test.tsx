@@ -38,8 +38,8 @@ describe('DebateArena', () => {
   it('static header contains both agent role labels', () => {
     render(<DebateArena />);
     const header = screen.getByTestId('debate-static-header');
-    expect(header.textContent).toMatch(/MAKER/);
-    expect(header.textContent).toMatch(/CHECKER/);
+    expect(header.textContent).toMatch(/Analyst/);
+    expect(header.textContent).toMatch(/Reviewer/);
   });
 
   it('static header shows the debate topic', () => {

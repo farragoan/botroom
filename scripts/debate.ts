@@ -11,7 +11,6 @@
  *   --max-turns <n>         Maximum debate turns    (default: 8)
  *   --min-turns <n>         Minimum turns before CONCLUDE/CONCEDE allowed (default: 0)
  *   --allow-clarification   Ask MAKER a clarifying question before Turn 1
- *   --web-search            Enable Tavily web search (requires TAVILY_API_KEY)
  *   --verbose               Include agent thinking in output
  */
 
@@ -41,7 +40,6 @@ Options:
   --max-turns <n>         Maximum debate turns    (default: 8)
   --min-turns <n>         Minimum turns before CONCLUDE/CONCEDE is allowed (default: 0)
   --allow-clarification   Ask MAKER a clarifying question before Turn 1
-  --web-search            Enable Tavily web search (requires TAVILY_API_KEY env var)
   --verbose               Include agent thinking in output
 
 Example:
@@ -58,7 +56,6 @@ Example:
   let minTurns = 0;
   let verbose = false;
   let allowClarification = false;
-  let enableWebSearch = false;
 
   for (let i = 1; i < args.length; i++) {
     switch (args[i]) {
@@ -70,9 +67,6 @@ Example:
         break;
       case '--allow-clarification':
         allowClarification = true;
-        break;
-      case '--web-search':
-        enableWebSearch = true;
         break;
       case '--maker-model':
         makerModel = args[++i];
@@ -101,7 +95,6 @@ Example:
       verbose,
       allowClarification,
       minTurnsBeforeConclusion: minTurns,
-      enableWebSearch,
     },
   };
 }
@@ -168,7 +161,6 @@ export async function main(argv: string[] = process.argv): Promise<void> {
   }
 
   const openRouterApiKey = process.env.OPENROUTER_API_KEY;
-  const tavilyApiKey = process.env.TAVILY_API_KEY;
 
   // Pre-debate clarification phase
   let effectiveTopic = topic;
@@ -217,8 +209,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
     console.log(
       color(
         `Models: MAKER=${config.makerModel}  CHECKER=${config.checkerModel}  maxTurns=${config.maxTurns}` +
-          (config.minTurnsBeforeConclusion ? `  minTurns=${config.minTurnsBeforeConclusion}` : '') +
-          (config.enableWebSearch ? '  webSearch=on' : ''),
+          (config.minTurnsBeforeConclusion ? `  minTurns=${config.minTurnsBeforeConclusion}` : ''),
         DIM,
       ),
     );
@@ -226,7 +217,7 @@ export async function main(argv: string[] = process.argv): Promise<void> {
   }
 
   try {
-    for await (const event of runDebate(finalConfig, groqApiKey, openRouterApiKey, tavilyApiKey)) {
+    for await (const event of runDebate(finalConfig, groqApiKey, openRouterApiKey)) {
       if (jsonMode) {
         process.stdout.write(JSON.stringify(event) + '\n');
         continue;
